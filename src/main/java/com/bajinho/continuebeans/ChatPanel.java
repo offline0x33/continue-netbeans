@@ -30,7 +30,14 @@ public class ChatPanel extends JPanel {
         chatOutput.setLineWrap(true);
         chatOutput.setWrapStyleWord(true);
         chatOutput.setFont(new Font("Monospaced", Font.PLAIN, 12));
-        chatOutput.setBackground(new Color(240, 240, 240));
+        // Use NetBeans theme background color
+        chatOutput.setBackground(UIManager.getColor("EditorPane.background"));
+        if (chatOutput.getBackground() == null) {
+            chatOutput.setBackground(UIManager.getColor("TextArea.background"));
+        }
+        if (chatOutput.getBackground() == null) {
+            chatOutput.setBackground(new Color(240, 240, 240)); // fallback
+        }
 
         JScrollPane outputScroll = new JScrollPane(chatOutput);
         outputScroll.setPreferredSize(new Dimension(600, 400));
