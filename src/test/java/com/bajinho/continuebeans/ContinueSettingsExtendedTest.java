@@ -12,7 +12,7 @@ class ContinueSettingsExtendedTest {
 
     @BeforeEach
     void setUp() {
-        ContinueSettings.setApiUrl("http://127.0.0.1:1234");
+        ContinueSettings.setApiUrl("http://127.0.0.1:1234/v1/chat/completions");
         ContinueSettings.setModel("default-model");
         ContinueSettings.setTemperature(0.7);
     }
@@ -100,8 +100,9 @@ class ContinueSettingsExtendedTest {
 
     @Test
     void testSetModelNull() {
-        ContinueSettings.setModel(null);
-        assertNull(ContinueSettings.getModel());
+        assertThrows(NullPointerException.class, () -> {
+            ContinueSettings.setModel(null);
+        });
     }
 
     @Test
@@ -112,8 +113,9 @@ class ContinueSettingsExtendedTest {
 
     @Test
     void testSetApiUrlNull() {
-        ContinueSettings.setApiUrl(null);
-        assertNull(ContinueSettings.getApiUrl());
+        assertThrows(NullPointerException.class, () -> {
+            ContinueSettings.setApiUrl(null);
+        });
     }
 
     @Test

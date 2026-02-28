@@ -31,9 +31,9 @@ public class LmStudioProviderTest {
 
         LmStudioProvider provider = new LmStudioProvider(mockClient, new Gson());
         List<String> models = provider.listModels().join();
-        // Should contain only the loaded model
-        assertEquals(1, models.size());
+        // Should contain both models (loaded instances and available models)
+        assertEquals(2, models.size());
         assertTrue(models.contains("modelLoaded"));
-        assertFalse(models.contains("modelNotLoaded"));
+        assertTrue(models.contains("modelNotLoaded"));
     }
 }

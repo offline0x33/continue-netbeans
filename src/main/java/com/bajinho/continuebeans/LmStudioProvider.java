@@ -286,6 +286,9 @@ public class LmStudioProvider implements LlmProvider {
                             if (instances.size() > 0) {
                                 modelos.add(m.get("id").getAsString());
                             }
+                        } else {
+                            // If no loaded_instances field, assume model is available (OpenAI format)
+                            modelos.add(m.get("id").getAsString());
                         }
                     }
                 }

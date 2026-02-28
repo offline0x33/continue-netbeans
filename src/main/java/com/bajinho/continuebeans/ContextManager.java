@@ -16,10 +16,38 @@ public class ContextManager {
     public static String processContext(String input, String currentWorkDir) {
         StringBuilder promptWithContext = new StringBuilder(input);
 
-        // Process @codebase
+        // Add automatic project context if no explicit commands are used
+        boolean hasExplicitContext = CODEBASE_PATTERN.matcher(input).find() || 
+                                   FILE_PATTERN.matcher(input).find();
+        
+        if (!hasExplicitContext && currentWorkDir != null) {
+            // Add basic project info automatically
+            String projectName = new File(currentWorkDir).getName();
+            promptWithContext.insert(0, "Contexto: Você está assistindo no projeto '" + projectName + "'. ");
+            
+            // Add brief project structure (limited to avoid too much context)
+            CodebaseIndexer indexer = new CodebaseIndexer(currentWorkDir);
+            indexer.setMaxDepth(3); // Shallow for auto-context
+            indexer.setMaxFiles(20); // Limited files
+            String structure = indexer.scanDirectory(currentWorkDir);
+            
+            if (structure != null && !structure.trim().isEmpty()) {
+                // Take first few lines of structure
+                String[] lines = structure.split("\n");
+                StringBuilder briefStructure = new StringBuilder();
+                for (int i = 0; i < Math.min(lines.length, 10); i++) {
+                    briefStructure.append(lines[i]).append("\n");
+                }
+                
+                promptWithContext.append("\n\nEstrutura resumida do projeto:\n```\n")
+                        .append(briefStructure.toString().trim()).append("\n```");
+            }
+        }
+
+        // Process @codebase (full structure)
         if (CODEBASE_PATTERN.matcher(input).find()) {
             String structure = getProjectStructure(currentWorkDir);
-            promptWithContext.append("\n\nEstrutura do Projeto (@codebase):\n```\n")
+            promptWithContext.append("\n\nEstrutura completa do Projeto (@codebase):\n```\n")
                     .append(structure).append("\n```");
         }
 

@@ -303,7 +303,12 @@ public final class ContinueTopComponent extends TopComponent {
         String contextCode = EditorUtils.getSelectedCode();
         String projectDir = EditorUtils.getCurrentProjectDirectory();
 
-        // Process context commands like @file:
+        // Add selected code to message if available
+        if (contextCode != null && !contextCode.trim().isEmpty()) {
+            msg = msg + "\n\nCódigo selecionado:\n```\n" + contextCode + "\n```";
+        }
+
+        // Process context commands like @file: and automatic project context
         String enrichedMsg = ContextManager.processContext(msg, projectDir);
 
         appendMessage("VOCÊ", msg);

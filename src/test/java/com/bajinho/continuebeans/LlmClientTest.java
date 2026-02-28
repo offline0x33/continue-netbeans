@@ -31,7 +31,7 @@ class LlmClientTest {
 
     @Test
     void testResolveUrlWithFullUrl() {
-        String result = client.resolveUrl("http://127.0.0.1:1234");
+        String result = client.resolveUrl("http://127.0.0.1:1234/v1/chat/completions");
         assertNotNull(result, "Should handle full URL");
     }
 
@@ -43,7 +43,7 @@ class LlmClientTest {
 
         try (MockedStatic<ContinueSettings> settingsMock = mockStatic(ContinueSettings.class)) {
             settingsMock.when(ContinueSettings::getModel).thenReturn("test-model");
-            settingsMock.when(ContinueSettings::getApiUrl).thenReturn("http://localhost:1234");
+            settingsMock.when(ContinueSettings::getApiUrl).thenReturn("http://localhost:1234/v1/chat/completions");
 
             Consumer<String> onChunk = chunk -> receivedChunk[0] = chunk;
             Consumer<Throwable> onError = error -> receivedError[0] = error;
@@ -52,8 +52,12 @@ class LlmClientTest {
             client.perguntarIAStreaming("context", "question", "test-model", "Code",
                     onChunk, onError, onComplete);
 
-            // Test just that the method executes without error
-            assertNotNull(client, "Client should be initialized");
+            // Wait a bit for async processing
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
         }
     }
 
@@ -100,13 +104,12 @@ class LlmClientTest {
     void testPerguntarIAAsyncWithModel() throws ExecutionException, InterruptedException {
         try (MockedStatic<ContinueSettings> settingsMock = mockStatic(ContinueSettings.class)) {
             settingsMock.when(ContinueSettings::getModel).thenReturn("default-model");
-            settingsMock.when(ContinueSettings::getApiUrl).thenReturn("http://localhost:1234");
+            settingsMock.when(ContinueSettings::getApiUrl).thenReturn("http://localhost:1234/v1/chat/completions");
             settingsMock.when(ContinueSettings::getTemperature).thenReturn(0.7);
 
             CompletableFuture<String> result = client.perguntarIAAsync("context", "question", "test-model", "Code");
             
             assertNotNull(result, "Should return CompletableFuture");
-            // Note: actual execution would require HTTP client mock
         }
     }
 
@@ -114,7 +117,7 @@ class LlmClientTest {
     void testPerguntarIAAsyncWithoutModel() throws ExecutionException, InterruptedException {
         try (MockedStatic<ContinueSettings> settingsMock = mockStatic(ContinueSettings.class)) {
             settingsMock.when(ContinueSettings::getModel).thenReturn("default-model");
-            settingsMock.when(ContinueSettings::getApiUrl).thenReturn("http://localhost:1234");
+            settingsMock.when(ContinueSettings::getApiUrl).thenReturn("http://localhost:1234/v1/chat/completions");
             settingsMock.when(ContinueSettings::getTemperature).thenReturn(0.7);
 
             CompletableFuture<String> result = client.perguntarIAAsync("context", "question", null, "Code");
@@ -126,22 +129,36 @@ class LlmClientTest {
     @Test
     void testGetModelosDisponiveisAsync() {
         try (MockedStatic<ContinueSettings> settingsMock = mockStatic(ContinueSettings.class)) {
-            settingsMock.when(ContinueSettings::getApiUrl).thenReturn("http://localhost:1234");
+            settingsMock.when(ContinueSettings::getApiUrl).thenReturn("http://localhost:1234/v1/chat/completions");
 
             CompletableFuture<List<String>> result = client.getModelosDisponiveisAsync();
             
             assertNotNull(result, "Should return CompletableFuture");
+            
+            // Wait for completion to avoid connection attempts in background
+            try {
+                result.get(1, java.util.concurrent.TimeUnit.SECONDS);
+            } catch (Exception e) {
+                // Expected - server is not running
+            }
         }
     }
 
     @Test
     void testLoadModel() {
         try (MockedStatic<ContinueSettings> settingsMock = mockStatic(ContinueSettings.class)) {
-            settingsMock.when(ContinueSettings::getApiUrl).thenReturn("http://localhost:1234");
+            settingsMock.when(ContinueSettings::getApiUrl).thenReturn("http://localhost:1234/v1/chat/completions");
 
             CompletableFuture<Boolean> result = client.loadModel("test-model");
             
             assertNotNull(result, "Should return CompletableFuture");
+            
+            // Wait for completion to avoid connection attempts in background
+            try {
+                result.get(1, java.util.concurrent.TimeUnit.SECONDS);
+            } catch (Exception e) {
+                // Expected - server is not running
+            }
         }
     }
 

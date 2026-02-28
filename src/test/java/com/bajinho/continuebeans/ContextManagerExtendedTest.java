@@ -22,7 +22,11 @@ class ContextManagerTest {
     void testProcessContextWithoutCommands() {
         String input = "Just a simple prompt";
         String result = ContextManager.processContext(input, tempDir.toString());
-        assertEquals(input, result, "Input without commands should be returned as-is");
+        assertTrue(result.contains(input), "Should contain original input");
+        assertTrue(result.contains("Contexto:"), "Should add automatic project context");
+        // Extract project name from temp directory path
+        String projectName = tempDir.getFileName().toString();
+        assertTrue(result.contains(projectName), "Should contain project name: " + projectName);
     }
 
     @Test
@@ -96,7 +100,10 @@ class ContextManagerTest {
     @Test
     void testProcessContextEmptyInput() {
         String result = ContextManager.processContext("", tempDir.toString());
-        assertEquals("", result, "Empty input should return empty output");
+        assertTrue(result.contains("Contexto:"), "Empty input should still add project context");
+        // Extract project name from temp directory path
+        String projectName = tempDir.getFileName().toString();
+        assertTrue(result.contains(projectName), "Should contain project name: " + projectName);
     }
 
     @Test
