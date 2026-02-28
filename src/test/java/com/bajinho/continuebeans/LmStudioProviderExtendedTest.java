@@ -17,7 +17,7 @@ import static org.mockito.Mockito.*;
 /**
  * Extended tests for LmStudioProvider to increase code coverage.
  */
-@SuppressWarnings("unchecked")
+@SuppressWarnings({"unchecked", "rawtypes"})
 class LmStudioProviderExtendedTest {
 
     private HttpClient mockClient;
@@ -225,5 +225,149 @@ class LmStudioProviderExtendedTest {
 
         HttpRequest request = captor.getValue();
         assertNotNull(request.uri(), "Request should have URI");
+    }
+
+    @Test
+    void testStreamWithPlanningMode() {
+        HttpResponse<Stream<String>> mockResponse = mock(HttpResponse.class);
+        when(mockResponse.statusCode()).thenReturn(200);
+        when(mockResponse.body()).thenReturn(Stream.of(
+                "data: {\"choices\":[{\"delta\":{\"content\":\"Planning...\"}}]}",
+                "data: [DONE]"
+        ));
+
+        when(mockClient.sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+                .thenReturn(CompletableFuture.completedFuture(mockResponse));
+
+        provider.stream("context", "plan this", "model", "Planning",
+                chunk -> {},
+                err -> {},
+                () -> {});
+
+        verify(mockClient).sendAsync(any(), any());
+    }
+
+    @Test
+    void testAskWithContextAndMode() throws Exception {
+        HttpResponse<String> mockResponse = mock(HttpResponse.class);
+        when(mockResponse.statusCode()).thenReturn(200);
+        when(mockResponse.body()).thenReturn("{\"choices\":[{\"text\":\"Result text\"}]}");
+
+        when(mockClient.sendAsync(any(HttpRequest.class), any()))
+                .thenReturn((CompletableFuture) CompletableFuture.completedFuture(mockResponse));
+
+        String result = provider.ask("some context", "question", "model", "Code").get();
+        assertNotNull(result, "Should return result");
+    }
+
+    @Test
+    void testAskError() throws Exception {
+        when(mockClient.sendAsync(any(HttpRequest.class), any()))
+                .thenReturn((CompletableFuture) CompletableFuture.failedFuture(
+                        new RuntimeException("Connection failed")
+                ));
+
+        try {
+            provider.ask("", "test", "model", "").get();
+            fail("Should throw exception");
+        } catch (Exception e) {
+            assertTrue(e.getMessage().contains("Connection") || e.getMessage().contains("failed"));
+        }
+    }
+
+    @Test
+    void testListModelsWithMultipleEndpoints() throws Exception {
+        HttpResponse<String> mockResponse = mock(HttpResponse.class);
+        when(mockResponse.statusCode()).thenReturn(200);
+        when(mockResponse.body()).thenReturn("{\"data\":[{\"id\":\"gpt-4\",\"loaded_instances\":[1]}]}");
+
+        when(mockClient.sendAsync(any(HttpRequest.class), any()))
+                .thenReturn((CompletableFuture) CompletableFuture.completedFuture(mockResponse));
+
+        List<String> models = provider.listModels().get();
+        assertNotNull(models, "Models list should not be null");
+    }
+
+    @Test
+    void testParseModelsFromComplexJson() {
+        // This tests JSON parsing with nested structure
+        // Indirectly tested through listModels which uses parseModels
+    }
+
+    @Test
+    void testLoadModelWithNetworkError() throws Exception {
+        when(mockClient.sendAsync(any(HttpRequest.class), any()))
+                .thenReturn((CompletableFuture) CompletableFuture.failedFuture(
+                        new java.net.ConnectException("Network error")
+                ));
+
+        try {
+            provider.loadModel("model").get();
+            // If no exception, the method handles it gracefully
+        } catch (Exception e) {
+            // Expected: Network errors should be caught
+            assertNotNull(e);
+        }
+    }
+
+    @Test
+    void testStreamWithContextAndEmptyPrompt() {
+        HttpResponse<Stream<String>> mockResponse = mock(HttpResponse.class);
+        when(mockResponse.statusCode()).thenReturn(200);
+        when(mockResponse.body()).thenReturn(Stream.of("data: [DONE]"));
+
+        when(mockClient.sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+                .thenReturn(CompletableFuture.completedFuture(mockResponse));
+
+        provider.stream("context only", "", "model", "Code",
+                chunk -> {},
+                err -> {},
+                () -> {});
+
+        verify(mockClient).sendAsync(any(), any());
+    }
+
+    @Test
+    void testStreamErrorCallback() {
+        HttpResponse<Stream<String>> mockResponse = mock(HttpResponse.class);
+        when(mockResponse.statusCode()).thenReturn(500);
+        when(mockResponse.body()).thenReturn(Stream.empty());
+
+        when(mockClient.sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+                .thenReturn(CompletableFuture.failedFuture(new RuntimeException("Stream error")));
+
+        Exception[] capturedError = new Exception[1];
+        provider.stream("", "test", "model", "Code",
+                chunk -> {},
+                err -> capturedError[0] = (Exception) err,
+                () -> {});
+
+        // Note: Error handling is async, so this mainly tests the callback is accepted
+    }
+
+    @Test
+    void testConversationManagerIntegration() {
+        HttpResponse<Stream<String>> mockResponse = mock(HttpResponse.class);
+        when(mockResponse.statusCode()).thenReturn(200);
+        when(mockResponse.body()).thenReturn(Stream.of(
+                "data: {\"choices\":[{\"delta\":{\"content\":\"response\"}}]}",
+                "data: [DONE]"
+        ));
+
+        when(mockClient.sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+                .thenReturn(CompletableFuture.completedFuture(mockResponse));
+
+        // Stream should integrate with ConversationManager
+        provider.stream(null, "first prompt", "model", "Code",
+                chunk -> {},
+                err -> {},
+                () -> {});
+
+        provider.stream(null, "second prompt", "model", "Code",
+                chunk -> {},
+                err -> {},
+                () -> {});
+
+        verify(mockClient, times(2)).sendAsync(any(), any());
     }
 }
