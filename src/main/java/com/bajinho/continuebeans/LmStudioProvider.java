@@ -18,17 +18,17 @@ public class LmStudioProvider implements LlmProvider {
 
     private final HttpClient client;
     private final Gson gson;
+    private final ConversationManager conversationManager;
 
     public LmStudioProvider(HttpClient client, Gson gson) {
         this.client = client;
         this.gson = gson;
+        this.conversationManager = new ConversationManager(4000);
     }
 
     private String resolveUrl(String url) {
         return UrlUtils.resolveUrl(url);
     }
-
-    private static final List<JsonObject> conversationHistory = new ArrayList<>();
 
     @Override
     public void stream(String context, String prompt, String model, String mode,
@@ -61,8 +61,8 @@ public class LmStudioProvider implements LlmProvider {
             systemMessage.addProperty("content", sysPrompt);
             messages.add(systemMessage);
 
-            // Add History (Enterprise Rule)
-            for (JsonObject msg : conversationHistory) {
+            // Add Conversation History
+            for (JsonObject msg : conversationManager.getLastMessages(10)) {
                 messages.add(msg);
             }
 
@@ -77,10 +77,8 @@ public class LmStudioProvider implements LlmProvider {
 
             payload.add("messages", messages);
 
-            // Update History for next turn
-            conversationHistory.add(userMessage);
-            if (conversationHistory.size() > 10)
-                conversationHistory.remove(0); // Basic truncation
+            // Update Conversation History (with automatic truncation if needed)
+            conversationManager.addMessage(userMessage);
 
         } else {
             StringBuilder promptBuilder = new StringBuilder();
@@ -145,12 +143,9 @@ public class LmStudioProvider implements LlmProvider {
                         }
                     });
 
-                    // Add AI response to history
+                    // Add AI response to conversation history
                     if (isChatFormat && fullContent.length() > 0) {
-                        JsonObject aiMsg = new JsonObject();
-                        aiMsg.addProperty("role", "assistant");
-                        aiMsg.addProperty("content", fullContent.toString());
-                        conversationHistory.add(aiMsg);
+                        conversationManager.addMessage("assistant", fullContent.toString());
                     }
 
                     onComplete.run();
