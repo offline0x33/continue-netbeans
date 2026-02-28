@@ -24,7 +24,7 @@
 
 ## 📸 Interface do Usuário
 
-![Chat UI Mockup](https://raw.githubusercontent.com/bajinho/continue-netbeans/main/chat_ui_mockup.png)
+![Chat UI Mockup](https://github.com/offline0x33/continue-netbeans/blob/main/chat_ui_mockup.png)
 
 *Interface moderna e integrada perfeitamente ao ecossistema NetBeans.*
 
