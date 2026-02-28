@@ -256,9 +256,16 @@ public class LmStudioProvider implements LlmProvider {
                     }
                     ContinueLogger.warn("Nenhum modelo em " + url + " (Status: " + response.statusCode() + ")", null);
                     return tryEndpoints(endpoints, index + 1, lastModelos);
-                }).exceptionallyCompose(ex -> {
+                })
+                .exceptionally(ex -> {
                     ContinueLogger.warn("Erro ao acessar " + url + ": " + ex.getMessage(), null);
-                    return tryEndpoints(endpoints, index + 1, lastModelos);
+                    return new ArrayList<String>();
+                })
+                .thenCompose(list -> {
+                    if (list == null || list.isEmpty()) {
+                        return tryEndpoints(endpoints, index + 1, lastModelos);
+                    }
+                    return CompletableFuture.completedFuture(list);
                 });
     }
 
@@ -278,12 +285,6 @@ public class LmStudioProvider implements LlmProvider {
                             if (instances.size() > 0) {
                                 modelos.add(m.get("id").getAsString());
                             }
-                        } else {
-                            // If no loaded_instances field, we assume it's another API type
-                            // and include it for compatibility, or keep it as is.
-                            // However, the user specifically asked for LM Studio.
-                            // In standard OpenAI, we just add it anyway.
-                            modelos.add(m.get("id").getAsString());
                         }
                     }
                 }

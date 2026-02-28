@@ -16,8 +16,8 @@ public class LmStudioProviderLoadModelTest {
         HttpClient mockClient = mock(HttpClient.class);
         HttpResponse<String> mockResponse = mock(HttpResponse.class);
         when(mockResponse.statusCode()).thenReturn(200);
-        when(mockClient.sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))
-                .thenReturn(CompletableFuture.completedFuture(mockResponse));
+        when(mockClient.sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+            .thenReturn(CompletableFuture.completedFuture(mockResponse));
         LmStudioProvider provider = new LmStudioProvider(mockClient, new Gson());
         assertTrue(provider.loadModel("modelA").join());
     }
@@ -27,8 +27,8 @@ public class LmStudioProviderLoadModelTest {
         HttpClient mockClient = mock(HttpClient.class);
         HttpResponse<String> mockResponse = mock(HttpResponse.class);
         when(mockResponse.statusCode()).thenReturn(400);
-        when(mockClient.sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))
-                .thenReturn(CompletableFuture.completedFuture(mockResponse));
+        when(mockClient.sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+            .thenReturn(CompletableFuture.completedFuture(mockResponse));
         LmStudioProvider provider = new LmStudioProvider(mockClient, new Gson());
         assertFalse(provider.loadModel("modelB").join());
     }
