@@ -102,13 +102,13 @@ public class LmStudioProvider implements LlmProvider {
         client.sendAsync(request, HttpResponse.BodyHandlers.ofLines())
                 .thenAccept(response -> {
                     if (response.statusCode() == 429 && allowRetry) {
-                        ContinueLogger.warn("Rate limit hit, retrying once...", null);
+                        ContinueLogger.warn(ErrorHandler.formatErrorMessage(429, finalUrl), null);
                         streamWithRetry(context, prompt, model, mode, onChunk, onError, onComplete, false);
                         return;
                     }
 
                     if (response.statusCode() != 200) {
-                        onError.accept(new Exception("Erro HTTP " + response.statusCode() + " em " + finalUrl));
+                        onError.accept(new Exception(ErrorHandler.formatErrorMessage(response.statusCode(), finalUrl)));
                         return;
                     }
 
@@ -156,7 +156,13 @@ public class LmStudioProvider implements LlmProvider {
                     onComplete.run();
                 })
                 .exceptionally(ex -> {
-                    onError.accept(ex);
+                    if (ex instanceof java.net.http.HttpTimeoutException) {
+                        onError.accept(new Exception(ErrorHandler.formatTimeoutMessage()));
+                    } else if (ex instanceof java.io.IOException) {
+                        onError.accept(new Exception(ErrorHandler.formatNetworkError(ex.getMessage())));
+                    } else {
+                        onError.accept(ex);
+                    }
                     return null;
                 });
     }
