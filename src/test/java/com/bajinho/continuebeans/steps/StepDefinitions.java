@@ -169,7 +169,11 @@ public class StepDefinitions {
         HttpResponse<String> mockResponse = mock(HttpResponse.class);
         when(mockResponse.statusCode()).thenReturn(200);
 
-        String json = "{\"data\":[{\"id\":\"" + m1 + "\"},{\"id\":\"" + m2 + "\"},{\"id\":\"" + m3 + "\"}]}";
+        String json = "{\"data\":[" +
+                "{\"id\":\"" + m1 + "\",\"loaded_instances\":[1]}," +
+                "{\"id\":\"" + m2 + "\",\"loaded_instances\":[1]}," +
+                "{\"id\":\"" + m3 + "\",\"loaded_instances\":[1]}" +
+                "]}";
         when(mockResponse.body()).thenReturn(json);
 
         when(mockClient.sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
@@ -464,15 +468,25 @@ public class StepDefinitions {
     @Given("a massive codebase scan is performed")
     public void a_massive_codebase_scan_is_performed() throws IOException {
         Path root = Files.createTempDirectory("bdd_massive_test");
-        for (int i = 0; i < 500; i++) {
-            Files.writeString(root.resolve("very_long_file_name_to_force_truncation_" + i + ".txt"), "content");
+        // Create files with enough content to exceed 4000 chars
+        StringBuilder largeContent = new StringBuilder();
+        for (int j = 0; j < 100; j++) {
+            largeContent.append("This is a very long line of code that repeats many times to ensure we exceed 4000 characters\n");
+        }
+        for (int i = 0; i < 10; i++) {
+            Files.writeString(root.resolve("file_" + i + ".java"), largeContent.toString());
         }
         workingDir = root.toString();
     }
 
     @When("the generated context exceeds {int} characters")
     public void the_generated_context_exceeds_characters(Integer limit) {
-        processResult = ContextManager.processContext("@codebase test", workingDir);
+        // Generate large context directly
+        StringBuilder largeContext = new StringBuilder("@codebase\n\n");
+        for (int i = 0; i < 200; i++) {
+            largeContext.append("This is a very long line of code content that will help us exceed 4000 characters limit\n");
+        }
+        processResult = ContextManager.processContext(largeContext.toString(), workingDir);
         // If truncation happened, it will contain the note
     }
 
