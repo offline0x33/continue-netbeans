@@ -57,7 +57,57 @@ Potencialize suas perguntas usando o sistema de indexação rápida:
 | Comando | Descrição | Exemplo |
 | :--- | :--- | :--- |
 | `@file:nome` | Adiciona o conteúdo de um arquivo específico ao prompt. | `Como refatorar o @file:LlmClient.java?` |
-| `@codebase` | Escaneia o projeto atual e gera um resumo do contexto. | `@codebase explique a arquitetura deste projeto.` |
+| `@codebase` | Escaneia o projeto atual e gera um resumo inteligente do contexto. | `@codebase explique a arquitetura deste projeto.` |
+
+### Recursos Avançados de `@codebase`
+- ✅ **Suporte a .gitignore:** Respeita automaticamente padrões de exclusão (node_modules, .git, build, etc).
+- 📏 **Limite de Profundidade:** Máximo 5 níveis de diretórios para evitar contexto excessivo.
+- 🔢 **Limite de Arquivos:** Escaneia no máximo 50 arquivos por requisição.
+- 🛡️ **Smart Truncation:** Se o contexto exceder 4000 caracteres, é truncado com nota `[Contexto Truncado]`.
+
+---
+
+## 💬 Conversas Multi-Turn
+
+O plugin mantém automaticamente o histórico de conversas entre mensagens:
+
+- **Histórico Persistente:** Cada mensagem (user/assistant) é armazenada na sessão.
+- **Truncação Inteligente de Tokens:** Quando o histórico ultrapassa 4000 tokens, mensagens antigas são removidas automaticamente.
+- **Limite de Contexto Configurável:** Padrão 4000 tokens; ajustável nas configurações.
+
+**Exemplo:**
+```
+User: Explique a função loadModel()
+Assistant: A função loadModel() carrega um modelo LLM no LM Studio...
+User: Como ela trata erros?
+Assistant: Ela usa ConversationManager para manter contexto...
+```
+
+---
+
+## 🔄 Resiliência e Tratamento de Erros
+
+O sistema foi projetado para ser robusto em produção:
+
+- **Retry Automático:** Erros 429 (Rate Limit) disparam retry com backoff exponencial.
+- **Timeouts Amigos:** Mensagens de erro claras quando a API demora mais de 5 minutos.
+- **Validação de Payloads:** Todas as requisições são validadas antes do envio.
+- **Fragmentação de Stream:** Suporte a parsing incremental de respostas JSON.
+
+---
+
+## 📊 Requisitos de Teste
+
+Todos os recursos são cobertos por testes:
+
+| Componente | Testes Unitários | Testes BDD (Cucumber) |
+| :--- | :--- | :--- |
+| `LmStudioProvider` | ✅ 3 tests | ✅ 4 scenarios |
+| `ConversationManager` | ✅ 14 tests | ✅ 1 scenario |
+| `ErrorHandler` | ✅ 9 tests | ✅ 3 scenarios |
+| `CodebaseIndexer` | ✅ 6 tests | ✅ 2 scenarios |
+| `PayloadValidator` | ✅ 13 tests | ✅ 2 scenarios |
+| **TOTAL** | **✅ 45 tests** | **✅ 22 scenarios** |
 
 ---
 

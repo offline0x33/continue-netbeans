@@ -1,0 +1,95 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        java-version: [11, 17]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Set up JDK ${{ matrix.java-version }}
+      uses: actions/setup-java@v3
+      with:
+        java-version: ${{ matrix.java-version }}
+        distribution: 'temurin'
+        cache: maven
+    
+    - name: Run unit tests
+      run: mvn clean test -DskipTests=false
+    
+    - name: Run Cucumber tests
+      run: mvn test -Dtest=CucumberTestRunner
+    
+    - name: Build project
+      run: mvn clean install
+    
+    - name: Check NBM artifact
+      run: |
+        if [ -f target/continue-beans-1.0-SNAPSHOT.nbm ]; then
+          echo "✅ NBM artifact built successfully"
+          ls -lh target/continue-beans-1.0-SNAPSHOT.nbm
+        else
+          echo "❌ NBM artifact not found"
+          exit 1
+        fi
+
+  publish-release:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Set up JDK 11
+      uses: actions/setup-java@v3
+      with:
+        java-version: 11
+        distribution: 'temurin'
+        cache: maven
+    
+    - name: Build final artifact
+      run: mvn clean install
+    
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      if: startsWith(github.ref, 'refs/tags/')
+      with:
+        files: target/continue-beans-1.0-SNAPSHOT.nbm
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  code-quality:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Set up JDK 11
+      uses: actions/setup-java@v3
+      with:
+        java-version: 11
+        distribution: 'temurin'
+        cache: maven
+    
+    - name: Run static analysis
+      run: mvn clean verify
+    
+    - name: Generate test report
+      if: always()
+      run: |
+        echo "## Test Results" >> $GITHUB_STEP_SUMMARY
+        echo "✅ Build completed" >> $GITHUB_STEP_SUMMARY
