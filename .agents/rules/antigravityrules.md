@@ -54,4 +54,5 @@ Para você que usa NetBeans, o fluxo de teste ideal integrado ao Maven é:
 1. **Aba "Test Results":** O NetBeans exibe nativamente o progresso do JUnit 5. Mantenha-a aberta.
 2. **Cucumber Integration:** O plugin que sugeri ("Cucumber Case") ajudará a ler os arquivos `.feature` que você já tem no `pom.xml`.
 3. **Run with Visual VM:** Como estamos lidando com IA e streaming de texto, monitore o consumo de memória do plugin durante o desenvolvimento para evitar leaks na IDE do usuário.
+---
 
