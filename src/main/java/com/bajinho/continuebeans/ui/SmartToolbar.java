@@ -4,7 +4,6 @@ import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
-import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -14,19 +13,12 @@ import java.util.concurrent.CompletableFuture;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.BorderFactory;
-import javax.swing.Box;
-import javax.swing.BoxLayout;
 import javax.swing.Icon;
 import javax.swing.ImageIcon;
 import javax.swing.JButton;
-import javax.swing.JComboBox;
-import javax.swing.JLabel;
 import javax.swing.JPanel;
-import javax.swing.JSeparator;
 import javax.swing.JToggleButton;
 import javax.swing.SwingUtilities;
-import org.openide.awt.ActionID;
-import org.openide.awt.ActionReference;
 import org.openide.util.ImageUtilities;
 import org.openide.windows.TopComponent;
 
@@ -42,10 +34,10 @@ public class SmartToolbar extends JPanel {
     
     private final Map<String, ToolbarAction> actions;
     private final List<ToolbarSection> sections;
-    private final JPanel mainPanel;
-    private final JPanel leftPanel;
-    private final JPanel centerPanel;
-    private final JPanel rightPanel;
+    private JPanel mainPanel;
+    private JPanel leftPanel;
+    private JPanel centerPanel;
+    private JPanel rightPanel;
     
     private String currentContext;
     private boolean adaptiveMode;
