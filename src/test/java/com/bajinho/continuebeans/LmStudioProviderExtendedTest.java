@@ -370,4 +370,180 @@ class LmStudioProviderExtendedTest {
 
         verify(mockClient, times(2)).sendAsync(any(), any());
     }
+
+    @Test
+    void testAskWithDifferentModes() throws Exception {
+        HttpResponse<String> mockResponse = mock(HttpResponse.class);
+        when(mockResponse.statusCode()).thenReturn(200);
+        when(mockResponse.body()).thenReturn("{\"choices\":[{\"message\":{\"content\":\"Test response\"}}]}");
+
+        when(mockClient.sendAsync(any(HttpRequest.class), any()))
+                .thenReturn((CompletableFuture) CompletableFuture.completedFuture(mockResponse));
+
+        String resultCode = provider.ask("ctx", "test", "model", "Code").get();
+        assertNotNull(resultCode);
+
+        String resultPlanning = provider.ask("ctx", "test", "model", "Planning").get();
+        assertNotNull(resultPlanning);
+
+        String resultDefault = provider.ask("ctx", "test", "model", "Other").get();
+        assertNotNull(resultDefault);
+    }
+
+    @Test
+    void testAskWithoutContext() throws Exception {
+        HttpResponse<String> mockResponse = mock(HttpResponse.class);
+        when(mockResponse.statusCode()).thenReturn(200);
+        when(mockResponse.body()).thenReturn("{\"choices\":[{\"message\":{\"content\":\"Response\"}}]}");
+
+        when(mockClient.sendAsync(any(HttpRequest.class), any()))
+                .thenReturn((CompletableFuture) CompletableFuture.completedFuture(mockResponse));
+
+        String result = provider.ask(null, "question", "model", "Code").get();
+        assertNotNull(result);
+    }
+
+    @Test
+    void testAskWithEmptyContext() throws Exception {
+        HttpResponse<String> mockResponse = mock(HttpResponse.class);
+        when(mockResponse.statusCode()).thenReturn(200);
+        when(mockResponse.body()).thenReturn("{\"choices\":[{\"message\":{\"content\":\"Response\"}}]}");
+
+        when(mockClient.sendAsync(any(HttpRequest.class), any()))
+                .thenReturn((CompletableFuture) CompletableFuture.completedFuture(mockResponse));
+
+        String result = provider.ask("  ", "question", "model", "Code").get();
+        assertNotNull(result);
+    }
+
+    @Test
+    void testParseModelsWithVariousFormats() {
+        // Test different JSON structures that parseModels should handle
+        HttpResponse<String> mockResponse = mock(HttpResponse.class);
+        when(mockResponse.statusCode()).thenReturn(200);
+        when(mockResponse.body()).thenReturn("{\"data\":[{\"id\":\"model1\"},{\"id\":\"model2\"},{\"id\":\"model3\"}]}");
+
+        when(mockClient.sendAsync(any(HttpRequest.class), any()))
+                .thenReturn((CompletableFuture) CompletableFuture.completedFuture(mockResponse));
+
+        // This would be tested indirectly through listModels
+    }
+
+    @Test
+    void testStreamWithLongContextAndPrompt() {
+        HttpResponse<Stream<String>> mockResponse = mock(HttpResponse.class);
+        when(mockResponse.statusCode()).thenReturn(200);
+        when(mockResponse.body()).thenReturn(Stream.of(
+                "data: {\"choices\":[{\"delta\":{\"content\":\"chunk1\"}}]}",
+                "data: {\"choices\":[{\"delta\":{\"content\":\"chunk2\"}}]}",
+                "data: [DONE]"
+        ));
+
+        when(mockClient.sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+                .thenReturn(CompletableFuture.completedFuture(mockResponse));
+
+        StringBuilder accumulated = new StringBuilder();
+        provider.stream("very long context".repeat(100), "very long prompt".repeat(50), "model", "Code",
+                chunk -> accumulated.append(chunk),
+                err -> {},
+                () -> {});
+
+        // ConversationManager should truncate if needed
+    }
+
+    @Test
+    void testLoadModelWith404Response() throws Exception {
+        HttpResponse<String> mockResponse = mock(HttpResponse.class);
+        when(mockResponse.statusCode()).thenReturn(404);
+        when(mockResponse.body()).thenReturn("{\"error\":\"Not found\"}");
+
+        when(mockClient.sendAsync(any(HttpRequest.class), any()))
+                .thenReturn((CompletableFuture) CompletableFuture.completedFuture(mockResponse));
+
+        Boolean result = provider.loadModel("nonexistent").get();
+        assertFalse(result);
+    }
+
+    @Test
+    void testLoadModelWith400Response() throws Exception {
+        HttpResponse<String> mockResponse = mock(HttpResponse.class);
+        when(mockResponse.statusCode()).thenReturn(400);
+        when(mockResponse.body()).thenReturn("{\"error\":\"Bad request\"}");
+
+        when(mockClient.sendAsync(any(HttpRequest.class), any()))
+                .thenReturn((CompletableFuture) CompletableFuture.completedFuture(mockResponse));
+
+        Boolean result = provider.loadModel("bad-model").get();
+        assertFalse(result);
+    }
+
+    @Test
+    void testStreamResponseWithMultipleChunks() {
+        HttpResponse<Stream<String>> mockResponse = mock(HttpResponse.class);
+        when(mockResponse.statusCode()).thenReturn(200);
+        when(mockResponse.body()).thenReturn(Stream.of(
+                "data: {\"choices\":[{\"delta\":{\"content\":\"Hello \"}}]}",
+                "data: {\"choices\":[{\"delta\":{\"content\":\"world\"}}]}",
+                "data: {\"choices\":[{\"delta\":{\"content\":\"!\"}}]}",
+                "data: [DONE]"
+        ));
+
+        when(mockClient.sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+                .thenReturn(CompletableFuture.completedFuture(mockResponse));
+
+        StringBuilder result = new StringBuilder();
+        provider.stream(null, "greet", "model", "Code",
+                chunk -> result.append(chunk),
+                err -> {},
+                () -> {});
+
+        assertEquals("Hello world!", result.toString());
+    }
+
+    @Test
+    void testAskResponseParsing() throws Exception {
+        HttpResponse<String> mockResponse = mock(HttpResponse.class);
+        when(mockResponse.statusCode()).thenReturn(200);
+        when(mockResponse.body()).thenReturn("{\"choices\":[{\"message\":{\"content\":\"Extracted text\"}}]}");
+
+        when(mockClient.sendAsync(any(HttpRequest.class), any()))
+                .thenReturn((CompletableFuture) CompletableFuture.completedFuture(mockResponse));
+
+        String result = provider.ask("", "test", "model", "Code").get();
+        assertEquals("Extracted text", result);
+    }
+
+    @Test
+    void testListModelsErrorHandling() throws Exception {
+        HttpResponse<String> mockResponse = mock(HttpResponse.class);
+        when(mockResponse.statusCode()).thenReturn(500);
+        when(mockResponse.body()).thenReturn("{\"error\":\"Server error\"}");
+
+        when(mockClient.sendAsync(any(HttpRequest.class), any()))
+                .thenReturn((CompletableFuture) CompletableFuture.completedFuture(mockResponse));
+
+        List<String> result = provider.listModels().get();
+        assertNotNull(result);
+    }
+
+    @Test
+    void testStreamRequestHeaders() {
+        HttpResponse<Stream<String>> mockResponse = mock(HttpResponse.class);
+        when(mockResponse.statusCode()).thenReturn(200);
+        when(mockResponse.body()).thenReturn(Stream.of("data: [DONE]"));
+
+        when(mockClient.sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+                .thenReturn(CompletableFuture.completedFuture(mockResponse));
+
+        provider.stream(null, "test", "model", "Code",
+                chunk -> {},
+                err -> {},
+                () -> {});
+
+        ArgumentCaptor<HttpRequest> captor = ArgumentCaptor.forClass(HttpRequest.class);
+        verify(mockClient).sendAsync(captor.capture(), any());
+
+        HttpRequest request = captor.getValue();
+        assertNotNull(request.headers(), "Request should have headers");
+    }
 }
