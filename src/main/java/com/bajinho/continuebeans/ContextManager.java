@@ -73,29 +73,10 @@ public class ContextManager {
         if (rootPath == null)
             return "Diretório do projeto não identificado.";
 
-        StringBuilder sb = new StringBuilder();
-        File root = new File(rootPath);
-        scanDirectory(root, "", sb, 0);
-        return sb.toString();
-    }
-
-    private static void scanDirectory(File dir, String indent, StringBuilder sb, int depth) {
-        if (depth > 5)
-            return;
-
-        File[] files = dir.listFiles();
-        if (files == null)
-            return;
-
-        for (File f : files) {
-            if (f.getName().startsWith(".") || f.getName().equals("target") || f.getName().equals("node_modules"))
-                continue;
-
-            sb.append(indent).append(f.isDirectory() ? "📁 " : "📄 ").append(f.getName()).append("\n");
-
-            if (f.isDirectory()) {
-                scanDirectory(f, indent + "  ", sb, depth + 1);
-            }
-        }
+        CodebaseIndexer indexer = new CodebaseIndexer(rootPath);
+        indexer.setMaxDepth(5);
+        indexer.setMaxFiles(50);
+        
+        return indexer.scanDirectory(rootPath);
     }
 }
