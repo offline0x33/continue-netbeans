@@ -87,8 +87,9 @@ public final class ContinueTopComponent extends TopComponent {
         modelSelector.setFont(new Font("SansSerif", Font.PLAIN, 10));
         modelSelector.addActionListener(e -> {
             String selected = (String) modelSelector.getSelectedItem();
-            if (selected != null && !selected.isEmpty() && !selected.equals(ContinueSettings.getModel())) {
-                client.loadModel(selected);
+            if (selected != null && !selected.isEmpty()) {
+                ContinueSettings.setModel(selected);
+                ContinueLogger.info("Modelo selecionado: " + selected);
             }
         });
 

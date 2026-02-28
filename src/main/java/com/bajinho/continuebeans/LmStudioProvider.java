@@ -271,8 +271,21 @@ public class LmStudioProvider implements LlmProvider {
                 JsonArray data = jsonObject.getAsJsonArray("data");
                 for (int i = 0; i < data.size(); i++) {
                     JsonObject m = data.get(i).getAsJsonObject();
-                    if (m.has("id"))
-                        modelos.add(m.get("id").getAsString());
+                    if (m.has("id")) {
+                        // Check if model is loaded (LM Studio specifically)
+                        if (m.has("loaded_instances") && m.get("loaded_instances").isJsonArray()) {
+                            JsonArray instances = m.getAsJsonArray("loaded_instances");
+                            if (instances.size() > 0) {
+                                modelos.add(m.get("id").getAsString());
+                            }
+                        } else {
+                            // If no loaded_instances field, we assume it's another API type
+                            // and include it for compatibility, or keep it as is.
+                            // However, the user specifically asked for LM Studio.
+                            // In standard OpenAI, we just add it anyway.
+                            modelos.add(m.get("id").getAsString());
+                        }
+                    }
                 }
             }
             // LM Studio specific older format
@@ -280,8 +293,10 @@ public class LmStudioProvider implements LlmProvider {
                 JsonArray models = jsonObject.getAsJsonArray("models");
                 for (int i = 0; i < models.size(); i++) {
                     JsonObject m = models.get(i).getAsJsonObject();
-                    if (m.has("id"))
+                    if (m.has("id")) {
+                        // Older formats might not have loaded_instances, so we add all
                         modelos.add(m.get("id").getAsString());
+                    }
                 }
             }
         } catch (Exception e) {
