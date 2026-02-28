@@ -1,6 +1,6 @@
 # Continue Beans ☕️🚀
 
-![Continue Beans Logo](https://raw.githubusercontent.com/bajinho/continue-netbeans/main/continue_beans_logo.png)
+![Continue Beans Logo](https://github.com/offline0x33/continue-netbeans/blob/main/continue_beans_logo.png)
 
 [![NetBeans Version](https://img.shields.io/badge/NetBeans-12.0+-blue.svg?style=for-the-badge&logo=apachenetbeans)](https://netbeans.apache.org/)
 [![Java Version](https://img.shields.io/badge/Java-11+-orange.svg?style=for-the-badge&logo=openjdk)](https://openjdk.org/)
