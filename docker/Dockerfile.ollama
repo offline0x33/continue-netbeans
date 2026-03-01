@@ -1,0 +1,14 @@
+# Use official Ollama image
+FROM ollama/ollama:latest
+
+# Set working directory
+WORKDIR /app
+
+# Copy any custom configuration if needed
+# COPY ollama_config.json /root/.ollama/
+
+# Expose port
+EXPOSE 11434
+
+# Start Ollama server
+CMD ["ollama", "serve"]

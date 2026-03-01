@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: continue-beans-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    restart: unless-stopped
+    networks:
+      - continue-beans-network
+
+  # Optional: Model pull service
+  model-puller:
+    image: ollama/ollama:latest
+    container_name: continue-beans-model-puller
+    depends_on:
+      - ollama
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - continue-beans-network
+    command: >
+      sh -c "
+        echo 'Waiting for Ollama to start...' &&
+        sleep 10 &&
+        echo 'Pulling qwen2.5:7b model...' &&
+        ollama pull qwen2.5:7b &&
+        echo 'Model pulled successfully!' &&
+        echo 'Available models:' &&
+        ollama list
+      "
+    profiles:
+      - pull-models
+
+volumes:
+  ollama_data:
+    driver: local
+
+networks:
+  continue-beans-network:
+    driver: bridge
