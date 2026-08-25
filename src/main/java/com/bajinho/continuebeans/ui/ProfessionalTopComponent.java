@@ -18,16 +18,14 @@
  */
 package com.bajinho.continuebeans.ui;
 
-import org.openide.windows.TopComponent;
-import org.openide.windows.WindowManager;
 import java.awt.BorderLayout;
 import java.util.ResourceBundle;
+import org.openide.windows.TopComponent;
+import org.openide.windows.WindowManager;
 
 /**
- * Top Component for Continue Beans with professional UI.
- * Integrates the modern chat panel with MCP tools management.
- * 
- * @author Continue Beans Team
+ * Official Continue Beans chat top component.
+ * Uses the implementation described by the Dark Theme UI specification.
  */
 @TopComponent.Description(
     preferredID = "ProfessionalContinueBeansTopComponent",
@@ -35,64 +33,65 @@ import java.util.ResourceBundle;
 )
 @TopComponent.Registration(mode = "editor", openAtStartup = false)
 public final class ProfessionalTopComponent extends TopComponent {
-    
-    private static final ResourceBundle BUNDLE = ResourceBundle.getBundle("com.bajinho.continuebeans.ui.Bundle");
-    
-    private ProfessionalChatPanel chatPanel;
-    
+
+    private static final ResourceBundle BUNDLE = ResourceBundle.getBundle(
+            "com.bajinho.continuebeans.ui.Bundle");
+
+    private DarkChatPanel chatPanel;
+
     public ProfessionalTopComponent() {
         initComponents();
         setName(BUNDLE.getString("CTL_ProfessionalContinueBeansTopComponent"));
         setToolTipText(BUNDLE.getString("HINT_ProfessionalContinueBeansTopComponent"));
     }
-    
+
     private void initComponents() {
         setLayout(new BorderLayout());
-        
-        chatPanel = new ProfessionalChatPanel();
+        chatPanel = new DarkChatPanel();
         add(chatPanel, BorderLayout.CENTER);
     }
-    
+
     @Override
     public void componentOpened() {
-        // Initialize when component opens
+        // UI is initialized in the constructor.
     }
-    
+
     @Override
     public void componentClosed() {
-        // Cleanup when component closes
+        // Reserved for future lifecycle cleanup.
     }
-    
+
     @Override
     protected void componentActivated() {
         super.componentActivated();
     }
-    
+
     @Override
     protected void componentDeactivated() {
         super.componentDeactivated();
     }
-    
+
     @Override
     protected void componentHidden() {
         super.componentHidden();
     }
-    
+
     @Override
     protected void componentShowing() {
         super.componentShowing();
     }
-    
+
     void writeProperties(java.util.Properties p) {
-        p.setProperty("version", "1.0");
+        p.setProperty("version", "2.1");
     }
-    
+
     void readProperties(java.util.Properties p) {
-        // Properties can be read here if needed
+        // Properties can be read here if needed.
     }
-    
+
     static ProfessionalTopComponent findInstance() {
-        TopComponent win = WindowManager.getDefault().findTopComponent("ProfessionalContinueBeansTopComponent");
+        TopComponent win = WindowManager.getDefault().findTopComponent(
+                "ProfessionalContinueBeansTopComponent");
         if (win == null) {
             return new ProfessionalTopComponent();
         }
