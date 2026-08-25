@@ -18,7 +18,11 @@ public final class AgentTask {
     private String lastError;
 
     public AgentTask(String title, String instruction, String completionCriteria, List<String> dependencies) {
-        this.id = UUID.randomUUID().toString();
+        this(UUID.randomUUID().toString(), title, instruction, completionCriteria, dependencies);
+    }
+
+    AgentTask(String id, String title, String instruction, String completionCriteria, List<String> dependencies) {
+        this.id = require(id, "id");
         this.title = require(title, "title");
         this.instruction = require(instruction, "instruction");
         this.completionCriteria = require(completionCriteria, "completionCriteria");
