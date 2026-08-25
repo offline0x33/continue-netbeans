@@ -101,14 +101,54 @@ jobs:
 
           echo "version=${NEXT_VERSION}" >> "$GITHUB_OUTPUT"
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
-          echo "Base: ${BASE_VERSION}"
-          echo "Próxima release: ${NEXT_VERSION}"
+          echo "Calculated release version: ${NEXT_VERSION}"
 
       - name: Set Maven release version
-        run: mvn versions:set -DnewVersion=${{ steps.version.outputs.version }} -DgenerateBackupPoms=false
+        run: |
+          set -euo pipefail
+          mvn -q versions:set -DnewVersion="${{ steps.version.outputs.version }}" -DgenerateBackupPoms=false
+
+          EFFECTIVE_VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+          EXPECTED_VERSION="${{ steps.version.outputs.version }}"
+
+          echo "Expected Maven version: ${EXPECTED_VERSION}"
+          echo "Effective Maven version: ${EFFECTIVE_VERSION}"
+
+          if [[ "${EFFECTIVE_VERSION}" != "${EXPECTED_VERSION}" ]]; then
+            echo "Version mismatch: Maven is still using ${EFFECTIVE_VERSION}" >&2
+            exit 1
+          fi
+
+          if [[ "${EFFECTIVE_VERSION}" == *SNAPSHOT* ]]; then
+            echo "SNAPSHOT version is forbidden in a stable release." >&2
+            exit 1
+          fi
 
       - name: Build release package
         run: mvn clean package -DskipTests
+
+      - name: Verify release artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.version.outputs.version }}"
+
+          NBM="target/continue-beans-${VERSION}.nbm"
+          JAR="target/continue-beans-${VERSION}.jar"
+
+          test -f "${NBM}" || {
+            echo "Expected NBM not found: ${NBM}" >&2
+            find target -maxdepth 1 -type f -printf '%f\n' | sort
+            exit 1
+          }
+
+          test -f "${JAR}" || {
+            echo "Expected JAR not found: ${JAR}" >&2
+            find target -maxdepth 1 -type f -printf '%f\n' | sort
+            exit 1
+          }
+
+          echo "Release artifacts verified for ${VERSION}"
 
       - name: Create Release
         uses: softprops/action-gh-release@v3
@@ -118,7 +158,7 @@ jobs:
           body: |
             ## Continue Beans AI Assistant v${{ steps.version.outputs.version }}
 
-            Automated release generated from `main`.
+            Automated semantic patch release generated from `main`.
 
             ### Features
             - Complete function calling system with NetBeans APIs
