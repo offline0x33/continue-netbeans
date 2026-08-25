@@ -75,19 +75,47 @@ public final class RealCodeTools {
         String className = required(args, "className");
         String pkg = optional(args, "packageName");
         Path file = testRoot().resolve(pkg.isEmpty() ? "" : pkg.replace('.', '/')).resolve(className + "Test.java");
+        List<String> methods = strings(args.get("testMethods"));
+        if (methods.isEmpty()) {
+            return NetBeansFunctionExecutor.FunctionResult.error(
+                    "generate_test_method exige pelo menos uma asserção Java em testMethods");
+        }
+
+        String framework = optional(args, "testFramework");
+        if (framework.isEmpty()) framework = "junit";
+        if (!"junit".equalsIgnoreCase(framework)) {
+            return NetBeansFunctionExecutor.FunctionResult.error(
+                    "Framework de teste não suportado: " + framework + ". Use junit.");
+        }
+
         StringBuilder code = new StringBuilder();
         if (!pkg.isEmpty()) code.append("package ").append(pkg).append(";\n\n");
-        code.append("import org.junit.jupiter.api.Test;\n\nclass ").append(className).append("Test {\n\n");
-        List<String> methods = strings(args.get("testMethods"));
-        if (methods.isEmpty()) methods = java.util.Collections.singletonList("shouldCreateInstance");
-        for (String method : methods) {
-            String safe = method.replaceAll("[^A-Za-z0-9_]", "_");
-            code.append("    @Test\n    void ").append(safe).append("() {\n");
-            code.append("        // TODO: add assertions\n    }\n\n");
+        code.append("import org.junit.jupiter.api.Test;\n")
+                .append("import static org.junit.jupiter.api.Assertions.*;\n\n")
+                .append("class ").append(className).append("Test {\n\n");
+        for (int i = 0; i < methods.size(); i++) {
+            String assertion = methods.get(i).trim();
+            validateAssertion(assertion);
+            String methodName = "shouldPassGeneratedScenario" + (i + 1);
+            code.append("    @Test\n    void ").append(methodName).append("() {\n")
+                    .append("        ").append(assertion);
+            if (!assertion.endsWith(";")) code.append(';');
+            code.append("\n    }\n\n");
         }
         code.append("}\n");
         createNewFile(file, code.toString());
         return created(file, "Teste criado");
+    }
+
+    private static void validateAssertion(String assertion) {
+        if (assertion.isEmpty()) {
+            throw new IllegalArgumentException("Asserção de teste vazia");
+        }
+        String normalized = assertion.replaceAll("\\s+", " ").trim();
+        if (!(normalized.startsWith("assert") || normalized.startsWith("Assertions.assert"))) {
+            throw new IllegalArgumentException(
+                    "testMethods deve conter asserções JUnit reais, por exemplo assertEquals(...)");
+        }
     }
 
     private static NetBeansFunctionExecutor.FunctionResult addDependency(Map<String, Object> args) throws Exception {
