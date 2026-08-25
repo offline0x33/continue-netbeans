@@ -38,18 +38,18 @@ public class ContextManager {
                 String[] lines = structure.split("\\n");
                 StringBuilder briefStructure = new StringBuilder();
                 for (int i = 0; i < Math.min(lines.length, 10); i++) {
-                    briefStructure.append(lines[i]).append("\\n");
+                    briefStructure.append(lines[i]).append("\n");
                 }
 
-                promptWithContext.append("\\n\\nEstrutura resumida do projeto:\\n```\\n")
-                        .append(briefStructure.toString().trim()).append("\\n```");
+                promptWithContext.append("\n\nEstrutura resumida do projeto:\n```\n")
+                        .append(briefStructure.toString().trim()).append("\n```");
             }
         }
 
         if (CODEBASE_PATTERN.matcher(input).find()) {
             String structure = getProjectStructure(currentWorkDir);
-            promptWithContext.append("\\n\\nEstrutura completa do Projeto (@codebase):\\n```\\n")
-                    .append(structure).append("\\n```");
+            promptWithContext.append("\n\nEstrutura completa do Projeto (@codebase):\n```\n")
+                    .append(structure).append("\n```");
         }
 
         Matcher matcher = FILE_PATTERN.matcher(input);
@@ -57,12 +57,12 @@ public class ContextManager {
             String filePath = matcher.group(1);
             String content = readFileContent(filePath, currentWorkDir);
             if (content != null) {
-                promptWithContext.append("\\n\\nConteúdo do arquivo @file:").append(filePath)
-                        .append(":\\n```\\n")
-                        .append(content).append("\\n```");
+                promptWithContext.append("\n\nConteúdo do arquivo @file:").append(filePath)
+                        .append(":\n```\n")
+                        .append(content).append("\n```");
                 appendNativeJavaLanguageContext(promptWithContext, filePath, currentWorkDir);
             } else {
-                promptWithContext.append("\\n\\n[ERRO: Não foi possível carregar o arquivo: ")
+                promptWithContext.append("\n\n[ERRO: Não foi possível carregar o arquivo: ")
                         .append(filePath).append("]");
             }
         }
@@ -70,7 +70,9 @@ public class ContextManager {
         return limitContext(promptWithContext.toString(), input);
     }
 
-    private static void appendNativeJavaLanguageContext(StringBuilder prompt, String path, String currentWorkDir) {
+    private static void appendNativeJavaLanguageContext(StringBuilder prompt,
+                                                         String path,
+                                                         String currentWorkDir) {
         String resolvedPath = resolvePath(path, currentWorkDir);
         if (!resolvedPath.endsWith(".java")) {
             return;
@@ -85,8 +87,8 @@ public class ContextManager {
 
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> symbols = (List<Map<String, Object>>) symbolsObject;
-            prompt.append("\\n\\nSemântica Java resolvida pelo Language Service do NetBeans:\\n```text\\n");
-            prompt.append("package=").append(analysis.get("package")).append('\\n');
+            prompt.append("\n\nSemântica Java resolvida pelo Language Service do NetBeans:\n```text\n");
+            prompt.append("package=").append(analysis.get("package")).append('\n');
             for (Map<String, Object> symbol : symbols) {
                 prompt.append(symbol.get("kind"))
                         .append(" ")
@@ -99,7 +101,7 @@ public class ContextManager {
                 if (qualifiedName != null) {
                     prompt.append(" [").append(qualifiedName).append("]");
                 }
-                prompt.append('\\n');
+                prompt.append('\n');
             }
             prompt.append("```");
         } catch (IOException e) {
@@ -130,8 +132,8 @@ public class ContextManager {
         int available = Math.max(0, maxChars - prefix.length() - markerLength);
         int tailChars = Math.min(available, Math.max(0, context.length() - prefix.length()));
 
-        String marker = "\\n... [Contexto Truncado para " + maxChars + " caracteres; "
-                + "pedido original preservado e fim do contexto preservado] ...\\n";
+        String marker = "\n... [Contexto Truncado para " + maxChars + " caracteres; "
+                + "pedido original preservado e fim do contexto preservado] ...\n";
 
         if (prefix.length() >= context.length()) {
             return prefix;
