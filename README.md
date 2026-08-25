@@ -8,7 +8,7 @@ Assistente de IA para Apache NetBeans, com foco em desenvolvimento assistido por
 
 O `main` mantém uma cadeia de validação contínua para Java 11, 17 e 21, testes automatizados, build do módulo NBM, cobertura e análise de qualidade.
 
-### O que já está funcionando
+### O que já está funcionando no `main`
 
 - Chat integrado ao NetBeans com interface dedicada.
 - Integração principal com LM Studio por API compatível com OpenAI.
@@ -19,8 +19,86 @@ O `main` mantém uma cadeia de validação contínua para Java 11, 17 e 21, test
 - Descoberta de modelos disponíveis no servidor local.
 - Gerenciamento de histórico de conversa com truncamento por limite de tokens.
 - Histórico de conversa protegido contra acesso concorrente e exposição do estado interno.
+- **Agente com ferramentas reais de workspace**, incluindo leitura de arquivos e navegação de diretórios.
+- **Resolução de caminhos relativos contra o workspace ativo** antes da execução das ferramentas.
+- **Contexto de workspace ampliado**, com orçamento padrão de 16.000 caracteres e limite configurável por `-Dcontinue.context.maxChars`.
+- `@codebase` com varredura ampliada para profundidade 8 e até 200 arquivos.
+- Preservação do pedido original e do final do contexto quando o orçamento precisa ser aplicado.
 - Suite de testes unitários com JUnit 5 e integração com Cucumber.
 - Empacotamento como plugin NetBeans (`.nbm`).
+
+### Próxima integração em validação
+
+A **PR #14** integra o Language Service Java nativo do NetBeans ao contexto do agente. A proposta usa `JavaSource`, `CompilationController` e `Trees` para fornecer ao modelo símbolos e metadados semânticos resolvidos pelo próprio IDE, em vez de introduzir um segundo parser Java.
+
+Até a conclusão da validação da PR, essa capacidade é considerada **em validação**, e não parte do contrato do `main`.
+
+## Agente de workspace
+
+O fluxo principal de inspeção de código segue esta arquitetura:
+
+```text
+Pergunta do usuário
+        |
+        v
+Workspace request detection
+        |
+        v
+AIToolCallingIntegration
+        |
+        +--> list_directory
+        |
+        +--> read_file
+        |
+        +--> outras ferramentas do workspace
+        |
+        v
+Resultado das ferramentas
+        |
+        v
+LLM analisa o conteúdo real
+```
+
+Isso permite solicitações naturais como:
+
+```text
+leia o código /home/bajinho/github/continue-netbeans/src
+```
+
+sem exigir que o usuário execute manualmente `find`, `cat` ou outros comandos para fornecer o conteúdo ao modelo.
+
+Caminhos relativos também são resolvidos contra o workspace ativo, por exemplo:
+
+```text
+src/main/java/com/bajinho/continuebeans/ChatPanel.java
+```
+
+é tratado como um caminho relativo ao projeto aberto no NetBeans.
+
+## Contexto de código
+
+O contexto explícito suporta `@file:` e `@codebase`.
+
+### Orçamento de contexto
+
+O limite padrão é de **16.000 caracteres** e pode ser ajustado sem recompilar:
+
+```bash
+-Dcontinue.context.maxChars=24000
+```
+
+Quando o contexto precisa ser reduzido, o sistema preserva o pedido original e o final do conteúdo, evitando o corte cego anterior de 4.000 caracteres.
+
+### `@codebase`
+
+A indexação de `@codebase` usa:
+
+```text
+profundidade máxima: 8
+arquivos máximos:    200
+```
+
+O objetivo é fornecer uma visão estrutural mais útil de projetos reais sem despejar arbitrariamente todo o repositório no prompt.
 
 ## Provedores
 
@@ -39,6 +117,18 @@ ContinueTopComponent / ProfessionalTopComponent
     v
 LlmClient
     |
+    +--> Workspace request routing
+    |        |
+    |        +--> AIToolCallingIntegration
+    |        |       |
+    |        |       +--> NetBeansFunctionExecutor
+    |        |               |
+    |        |               +--> read_file
+    |        |               +--> list_directory
+    |        |
+    |        v
+    |     LLM + tools
+    |
     v
 LlmProvider
     |
@@ -48,7 +138,7 @@ LlmProvider
 ConversationManager
 ```
 
-A camada de conversa mantém o contexto da sessão e aplica truncamento automático conforme o limite configurado.
+A camada de conversa mantém o contexto da sessão e aplica as regras de orçamento configuradas para o contexto enviado ao modelo.
 
 ## Build local
 
@@ -92,13 +182,13 @@ A matriz atual cobre Java 11, 17 e 21. O pipeline também verifica a existência
 
 Os testes usam JUnit 5, Mockito e Cucumber/JUnit Platform. A configuração de JaCoCo mantém a verificação de cobertura integrada ao ciclo `verify`, com exclusões explícitas para áreas que ainda não fazem parte do núcleo coberto.
 
-As correções recentes também endureceram o histórico de conversas contra concorrência e adicionaram testes de regressão para esse comportamento.
+As correções recentes também endureceram o histórico de conversas contra concorrência e adicionaram testes de regressão para o roteamento de workspace, resolução de caminhos e orçamento de contexto.
 
 ## Interface
 
 A experiência de chat está convergindo para uma única linguagem visual Dark Theme. A especificação abaixo é o contrato visual do produto: ela define cores, tipografia, densidade, componentes, estados e hierarquia da interface.
 
-A implementação da especificação está sendo validada na [PR #7](https://github.com/offline0x33/continue-netbeans/pull/7). Enquanto essa PR não for incorporada ao `main`, o README não considera a nova aparência como estado de produção do branch principal.
+A **PR #7 já foi incorporada ao `main`**, portanto a especificação Dark Theme abaixo representa a direção visual oficial do produto e não apenas um mockup futuro.
 
 ### Especificação visual — Chat Dark Theme
 
@@ -254,8 +344,9 @@ A implementação oficial deve convergir para um único caminho de UI. O `Profes
 
 ## Roadmap técnico
 
+- Concluir a validação e incorporação do **Language Service nativo do NetBeans** da PR #14.
+- Expandir as tools do workspace para navegação semântica e diagnósticos do IDE, além de leitura de arquivos e diretórios.
 - Consolidar os caminhos de UI duplicados sem quebrar compatibilidade do módulo.
-- Concluir a validação e incorporação da nova UI Dark Theme no `main`.
 - Reduzir código de scaffolding e funcionalidades não conectadas ao fluxo principal.
 - Expandir a cobertura dos provedores e integrações MCP com testes de comportamento reais.
 - Melhorar cancelamento e ciclo de vida de operações assíncronas do streaming.
