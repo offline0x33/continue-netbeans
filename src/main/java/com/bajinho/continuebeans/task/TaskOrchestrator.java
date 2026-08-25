@@ -36,10 +36,11 @@ public final class TaskOrchestrator {
     public CompletableFuture<TaskPlan> executeGoal(String goal, String provider, Listener listener) {
         return CompletableFuture.supplyAsync(() -> {
             TaskPlan plan = null;
+            String planningGoal = goal;
             int replans = 0;
             try {
                 while (replans <= MAX_REPLANS) {
-                    plan = planner.createPlan(goal);
+                    plan = planner.createPlan(planningGoal);
                     listener.onPlanCreated(plan);
                     executePlan(plan, provider, listener);
 
@@ -60,6 +61,7 @@ public final class TaskOrchestrator {
 
                     replans++;
                     listener.onReplanning(plan);
+                    planningGoal = buildReplanGoal(goal, plan);
                 }
                 return plan;
             } catch (Exception e) {
@@ -116,6 +118,23 @@ public final class TaskOrchestrator {
                 return;
             }
         }
+    }
+
+    private String buildReplanGoal(String originalGoal, TaskPlan failedPlan) {
+        StringBuilder context = new StringBuilder();
+        context.append(originalGoal).append("\n\n")
+                .append("CONTEXTO OBRIGATÓRIO DE REPLANEJAMENTO:\n")
+                .append("O plano anterior não foi concluído. Não repita cegamente as mesmas tarefas. "
+                        + "Analise as falhas abaixo e crie uma estratégia corrigida.\n");
+        for (AgentTask task : failedPlan.getTasks()) {
+            if (task.getStatus() == TaskStatus.FAILED || task.getStatus() == TaskStatus.BLOCKED) {
+                context.append("- Tarefa: ").append(task.getTitle())
+                        .append("; tentativas: ").append(task.getAttempts())
+                        .append("; erro: ").append(task.getLastError()).append('\n');
+            }
+        }
+        context.append("Inclua explicitamente uma tarefa de verificação que prove a correção da falha.");
+        return context.toString();
     }
 
     private String buildTaskPrompt(TaskPlan plan, AgentTask task) {
