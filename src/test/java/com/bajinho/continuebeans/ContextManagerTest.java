@@ -12,7 +12,7 @@ class ContextManagerTest {
     void shouldPreserveBeginningAndEndWhenContextExceedsBudget() throws Exception {
         Path tempDir = Files.createTempDirectory("continue-context-");
         Path file = tempDir.resolve("large.txt");
-        Files.writeString(file, "A".repeat(9000) + "END-MARKER");
+        Files.writeString(file, "A".repeat(18_000) + "END-MARKER");
 
         String result = ContextManager.processContext("@file:" + file, tempDir.toString());
 
@@ -33,6 +33,7 @@ class ContextManagerTest {
             String result = ContextManager.processContext("@file:" + file, tempDir.toString());
 
             assertTrue(result.length() <= 2176);
+            assertTrue(result.startsWith("@file:" + file));
             assertTrue(result.contains("END"));
         } finally {
             if (previous == null) {
