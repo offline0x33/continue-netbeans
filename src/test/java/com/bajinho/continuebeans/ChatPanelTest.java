@@ -94,12 +94,13 @@ class ChatPanelTest {
     }
 
     @Test
-    void testStatusLabelInitialization() throws Exception {
+    void testFooterStatusInitialization() throws Exception {
         onEdt(() -> {
-            JLabel statusLabel = findLabel(chatPanel, "Ready");
-            assertNotNull(statusLabel);
-            assertEquals("Ready", statusLabel.getText());
-            assertEquals(new Color(0xA1, 0xA1, 0xAA), statusLabel.getForeground());
+            JLabel localStatus = findLabelContaining(chatPanel, "Local");
+            JLabel migrationStatus = findLabelContaining(chatPanel, "Migrate off Cascade");
+            assertNotNull(localStatus);
+            assertNotNull(migrationStatus);
+            assertTrue(localStatus.getText().contains("continue-netbeans"));
         });
     }
 
@@ -172,21 +173,6 @@ class ChatPanelTest {
             }
             if (component instanceof Container) {
                 JComboBox<String> found = findModeSelector((Container) component);
-                if (found != null) {
-                    return found;
-                }
-            }
-        }
-        return null;
-    }
-
-    private static JLabel findLabel(Container container, String text) {
-        for (Component component : container.getComponents()) {
-            if (component instanceof JLabel && text.equals(((JLabel) component).getText())) {
-                return (JLabel) component;
-            }
-            if (component instanceof Container) {
-                JLabel found = findLabel((Container) component, text);
                 if (found != null) {
                     return found;
                 }
