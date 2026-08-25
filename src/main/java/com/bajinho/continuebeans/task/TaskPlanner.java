@@ -48,7 +48,8 @@ public final class TaskPlanner {
                 + "Transforme o objetivo do usuário em tarefas concretas, ordenadas e verificáveis. "
                 + "Responda SOMENTE JSON válido no formato de tasks com title, instruction, completionCriteria e dependsOn. "
                 + "Cada tarefa deve ser executável e ter critério observável. "
-                + "dependsOn referencia índice zero-based e o plano precisa terminar com uma tarefa de verificação.");
+                + "dependsOn referencia índice zero-based e o plano precisa terminar com uma tarefa de verificação. "
+                + "Nunca use dependência para uma tarefa que não exista.");
         messages.add(system);
         JsonObject user = new JsonObject();
         user.addProperty("role", "user");
@@ -111,9 +112,15 @@ public final class TaskPlanner {
         for (int i = 0; i < tasks.size(); i++) {
             List<String> ids = new ArrayList<>();
             for (Integer index : dependencyIndexes.get(i)) {
-                if (index != null && index >= 0 && index < tasks.size()) {
-                    ids.add(tasks.get(index).getId());
+                if (index == null || index < 0 || index >= tasks.size()) {
+                    throw new IllegalStateException("Dependência inválida na tarefa " + (i + 1)
+                            + ": índice " + index + " não existe no plano.");
                 }
+                if (index >= i) {
+                    throw new IllegalStateException("Dependência inválida na tarefa " + (i + 1)
+                            + ": depende de uma tarefa futura (" + index + ").");
+                }
+                ids.add(tasks.get(index).getId());
             }
             AgentTask original = tasks.get(i);
             linked.add(new AgentTask(original.getId(), original.getTitle(), original.getInstruction(),
