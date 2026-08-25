@@ -17,233 +17,166 @@ import javax.xml.transform.stream.StreamResult;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 
-/** Real implementations for code-generation tools exposed to the AI agent. */
+/** Real, Java 11-compatible implementations for code-generation tools. */
 public final class RealCodeTools {
+    private RealCodeTools() { }
 
-    private RealCodeTools() {
-    }
-
-    public static NetBeansFunctionExecutor.FunctionResult execute(
-            String functionName, Map<String, Object> args) {
+    public static NetBeansFunctionExecutor.FunctionResult execute(String name, Map<String, Object> args) {
         try {
-            switch (functionName) {
-                case "generate_class":
-                    return generateClass(args);
-                case "generate_interface":
-                    return generateInterface(args);
-                case "generate_test_method":
-                    return generateTest(args);
-                case "add_dependency":
-                    return addDependency(args);
-                default:
-                    return NetBeansFunctionExecutor.FunctionResult.error(
-                            "Tool não implementada no RealCodeTools: " + functionName);
+            switch (name) {
+                case "generate_class": return generateClass(args);
+                case "generate_interface": return generateInterface(args);
+                case "generate_test_method": return generateTest(args);
+                case "add_dependency": return addDependency(args);
+                default: return NetBeansFunctionExecutor.FunctionResult.error("Tool não implementada: " + name);
             }
         } catch (Exception e) {
-            return NetBeansFunctionExecutor.FunctionResult.error(
-                    "Falha na tool " + functionName + ": " + e.getMessage());
+            return NetBeansFunctionExecutor.FunctionResult.error("Falha na tool " + name + ": " + e.getMessage());
         }
     }
 
-    private static NetBeansFunctionExecutor.FunctionResult generateClass(Map<String, Object> args)
-            throws IOException {
+    private static NetBeansFunctionExecutor.FunctionResult generateClass(Map<String, Object> args) throws IOException {
         String className = required(args, "className");
         String packageName = required(args, "packageName");
-        Path source = javaSourceRoot().resolve(packageName.replace('.', '/'))
-                .resolve(className + ".java");
-        ensureNewFile(source);
+        Path file = sourceRoot().resolve(packageName.replace('.', '/')).resolve(className + ".java");
+        createNewFile(file, buildClass(args, className, packageName));
+        return created(file, "Classe criada");
+    }
 
+    private static String buildClass(Map<String, Object> args, String name, String pkg) {
         StringBuilder code = new StringBuilder();
-        appendPackage(code, packageName);
-        code.append("public class ").append(className);
-
-        String extendsClass = optional(args, "extendsClass");
-        if (!extendsClass.isBlank()) {
-            code.append(" extends ").append(extendsClass);
-        }
-
-        List<String> interfaces = stringList(args.get("implements"));
-        if (!interfaces.isEmpty()) {
-            code.append(" implements ").append(String.join(", ", interfaces));
-        }
+        code.append("package ").append(pkg).append(";\n\npublic class ").append(name);
+        String parent = optional(args, "extendsClass");
+        if (!parent.isEmpty()) code.append(" extends ").append(parent);
+        List<String> interfaces = strings(args.get("implements"));
+        if (!interfaces.isEmpty()) code.append(" implements ").append(String.join(", ", interfaces));
         code.append(" {\n\n");
-
-        for (String field : stringList(args.get("fields"))) {
-            code.append("    private ").append(field).append(";\n");
-        }
-        if (!stringList(args.get("fields")).isEmpty()) {
-            code.append('\n');
-        }
-        for (String method : stringList(args.get("methods"))) {
-            code.append("    ").append(method).append("\n\n");
-        }
+        for (String field : strings(args.get("fields"))) code.append("    private ").append(field).append(";\n");
+        if (!strings(args.get("fields")).isEmpty()) code.append('\n');
+        for (String method : strings(args.get("methods"))) code.append("    ").append(method).append("\n\n");
         code.append("}\n");
-
-        write(source, code.toString());
-        return success("Classe criada", source, code.toString());
+        return code.toString();
     }
 
-    private static NetBeansFunctionExecutor.FunctionResult generateInterface(Map<String, Object> args)
-            throws IOException {
+    private static NetBeansFunctionExecutor.FunctionResult generateInterface(Map<String, Object> args) throws IOException {
         String name = required(args, "interfaceName");
-        String packageName = required(args, "packageName");
-        Path source = javaSourceRoot().resolve(packageName.replace('.', '/'))
-                .resolve(name + ".java");
-        ensureNewFile(source);
-
-        StringBuilder code = new StringBuilder();
-        appendPackage(code, packageName);
-        code.append("public interface ").append(name).append(" {\n\n");
-        for (String method : stringList(args.get("methods"))) {
-            code.append("    ").append(normalizeInterfaceMethod(method)).append("\n");
+        String pkg = required(args, "packageName");
+        Path file = sourceRoot().resolve(pkg.replace('.', '/')).resolve(name + ".java");
+        StringBuilder code = new StringBuilder("package ").append(pkg).append(";\n\npublic interface ").append(name).append(" {\n\n");
+        for (String method : strings(args.get("methods"))) {
+            code.append("    ").append(method.endsWith(";") ? method : method + ";").append("\n");
         }
         code.append("}\n");
-
-        write(source, code.toString());
-        return success("Interface criada", source, code.toString());
+        createNewFile(file, code.toString());
+        return created(file, "Interface criada");
     }
 
-    private static NetBeansFunctionExecutor.FunctionResult generateTest(Map<String, Object> args)
-            throws IOException {
+    private static NetBeansFunctionExecutor.FunctionResult generateTest(Map<String, Object> args) throws IOException {
         String className = required(args, "className");
-        String packageName = optional(args, "packageName");
-        String testPackage = packageName.isBlank() ? packageFromWorkspace() : packageName;
-        Path source = javaTestRoot().resolve(testPackage.replace('.', '/'))
-                .resolve(className + "Test.java");
-        ensureNewFile(source);
-
+        String pkg = optional(args, "packageName");
+        Path file = testRoot().resolve(pkg.isEmpty() ? "" : pkg.replace('.', '/')).resolve(className + "Test.java");
         StringBuilder code = new StringBuilder();
-        if (!testPackage.isBlank()) {
-            appendPackage(code, testPackage);
-        }
-        code.append("import org.junit.jupiter.api.Test;\n\n");
-        code.append("class ").append(className).append("Test {\n\n");
-        List<String> methods = stringList(args.get("testMethods"));
-        if (methods.isEmpty()) {
-            methods = List.of("shouldCreateInstance");
-        }
+        if (!pkg.isEmpty()) code.append("package ").append(pkg).append(";\n\n");
+        code.append("import org.junit.jupiter.api.Test;\n\nclass ").append(className).append("Test {\n\n");
+        List<String> methods = strings(args.get("testMethods"));
+        if (methods.isEmpty()) methods = java.util.Collections.singletonList("shouldCreateInstance");
         for (String method : methods) {
-            String methodName = method.replaceAll("[^A-Za-z0-9_]", "_");
-            code.append("    @Test\n");
-            code.append("    void ").append(methodName).append("() {\n");
-            code.append("        // TODO: add assertions for ").append(methodName).append("\n");
-            code.append("    }\n\n");
+            String safe = method.replaceAll("[^A-Za-z0-9_]", "_");
+            code.append("    @Test\n    void ").append(safe).append("() {\n");
+            code.append("        // TODO: add assertions\n    }\n\n");
         }
         code.append("}\n");
-
-        write(source, code.toString());
-        return success("Teste criado", source, code.toString());
+        createNewFile(file, code.toString());
+        return created(file, "Teste criado");
     }
 
-    private static NetBeansFunctionExecutor.FunctionResult addDependency(Map<String, Object> args)
-            throws Exception {
+    private static NetBeansFunctionExecutor.FunctionResult addDependency(Map<String, Object> args) throws Exception {
         String groupId = required(args, "groupId");
         String artifactId = required(args, "artifactId");
         String version = optional(args, "version");
         String scope = optional(args, "scope");
-        if (scope.isBlank()) {
-            scope = "compile";
-        }
+        if (scope.isEmpty()) scope = "compile";
 
         Path pom = findPom();
-        Document document = DocumentBuilderFactory.newInstance()
-                .newDocumentBuilder().parse(pom.toFile());
+        Document document = DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(pom.toFile());
         Element project = document.getDocumentElement();
         Element dependencies = firstChild(project, "dependencies");
         if (dependencies == null) {
             dependencies = document.createElement("dependencies");
             project.appendChild(dependencies);
         }
-
-        for (Element dependency : children(dependencies, "dependency")) {
-            String existingGroup = text(dependency, "groupId");
-            String existingArtifact = text(dependency, "artifactId");
-            if (groupId.equals(existingGroup) && artifactId.equals(existingArtifact)) {
-                return NetBeansFunctionExecutor.FunctionResult.error(
-                        "Dependência já existe: " + groupId + ":" + artifactId);
+        for (Element dep : children(dependencies, "dependency")) {
+            if (groupId.equals(text(dep, "groupId")) && artifactId.equals(text(dep, "artifactId"))) {
+                return NetBeansFunctionExecutor.FunctionResult.error("Dependência já existe: " + groupId + ":" + artifactId);
             }
         }
+        Element dep = document.createElement("dependency");
+        append(document, dep, "groupId", groupId);
+        append(document, dep, "artifactId", artifactId);
+        if (!version.isEmpty()) append(document, dep, "version", version);
+        if (!"compile".equals(scope)) append(document, dep, "scope", scope);
+        dependencies.appendChild(dep);
 
-        Element dependency = document.createElement("dependency");
-        appendElement(document, dependency, "groupId", groupId);
-        appendElement(document, dependency, "artifactId", artifactId);
-        if (!version.isBlank()) {
-            appendElement(document, dependency, "version", version);
-        }
-        if (!"compile".equals(scope)) {
-            appendElement(document, dependency, "scope", scope);
-        }
-        dependencies.appendChild(dependency);
-
-        TransformerFactory transformerFactory = TransformerFactory.newInstance();
-        var transformer = transformerFactory.newTransformer();
+        javax.xml.transform.Transformer transformer = TransformerFactory.newInstance().newTransformer();
         transformer.setOutputProperty(OutputKeys.INDENT, "yes");
         transformer.setOutputProperty(OutputKeys.ENCODING, "UTF-8");
         transformer.transform(new DOMSource(document), new StreamResult(pom.toFile()));
-
-        return NetBeansFunctionExecutor.FunctionResult.success(
-                "Dependência adicionada", Map.of(
-                        "pom", pom.toString(),
-                        "groupId", groupId,
-                        "artifactId", artifactId,
-                        "version", version,
-                        "scope", scope,
-                        "status", "updated"));
+        return NetBeansFunctionExecutor.FunctionResult.success("Dependência adicionada", Map.of(
+                "pom", pom.toString(), "groupId", groupId, "artifactId", artifactId,
+                "version", version, "scope", scope, "status", "updated"));
     }
 
-    private static Path javaSourceRoot() throws IOException {
-        return findSourceRoot("src/main/java");
-    }
+    private static Path sourceRoot() throws IOException { return findRoot("src/main/java"); }
+    private static Path testRoot() throws IOException { return findRoot("src/test/java"); }
 
-    private static Path javaTestRoot() throws IOException {
-        return findSourceRoot("src/test/java");
-    }
-
-    private static Path findSourceRoot(String relative) throws IOException {
+    private static Path findRoot(String relative) throws IOException {
         Path root = ToolExecutionPolicy.workspaceRoot();
-        Path candidate = root.resolve(relative);
-        if (Files.isDirectory(candidate)) {
-            return candidate;
+        Path direct = root.resolve(relative);
+        if (Files.isDirectory(direct)) return direct;
+        Path result = root;
+        String[] parts = relative.split("/");
+        try (java.util.stream.Stream<Path> stream = Files.walk(root, 5)) {
+            result = stream.filter(Files::isDirectory).filter(p -> endsWithSegments(p, parts)).findFirst().orElse(null);
         }
-        try (var stream = Files.walk(root, 5)) {
-            return stream.filter(Files::isDirectory)
-                    .filter(p -> p.endsWith(Path.of(relative.split("/"))))
-                    .findFirst()
-                    .orElseThrow(() -> new IOException("Diretório " + relative + " não encontrado no workspace"));
+        if (result == null) throw new IOException("Diretório " + relative + " não encontrado no workspace");
+        return result;
+    }
+
+    private static boolean endsWithSegments(Path path, String[] parts) {
+        Path current = path;
+        for (int i = parts.length - 1; i >= 0; i--) {
+            if (current == null || !parts[i].equals(current.getFileName().toString())) return false;
+            current = current.getParent();
         }
+        return true;
     }
 
     private static Path findPom() throws IOException {
         Path root = ToolExecutionPolicy.workspaceRoot();
         Path direct = root.resolve("pom.xml");
-        if (Files.isRegularFile(direct)) {
-            return direct;
-        }
-        try (var stream = Files.walk(root, 5)) {
-            return stream.filter(p -> p.getFileName().toString().equals("pom.xml"))
-                    .findFirst()
-                    .orElseThrow(() -> new IOException("pom.xml não encontrado no workspace"));
+        if (Files.isRegularFile(direct)) return direct;
+        try (java.util.stream.Stream<Path> stream = Files.walk(root, 5)) {
+            return stream.filter(p -> p.getFileName() != null && "pom.xml".equals(p.getFileName().toString()))
+                    .findFirst().orElseThrow(() -> new IOException("pom.xml não encontrado no workspace"));
         }
     }
 
-    private static void ensureNewFile(Path path) throws IOException {
-        Path normalized = ToolExecutionPolicy.requireWorkspacePath(path.toString());
-        if (Files.exists(normalized)) {
-            throw new IOException("Arquivo já existe: " + normalized);
-        }
-        Files.createDirectories(normalized.getParent());
+    private static void createNewFile(Path file, String content) throws IOException {
+        Path safe = ToolExecutionPolicy.requireWorkspacePath(file.toString());
+        if (Files.exists(safe)) throw new IOException("Arquivo já existe: " + safe);
+        Files.createDirectories(safe.getParent());
+        Files.write(safe, content.getBytes(StandardCharsets.UTF_8), StandardOpenOption.CREATE_NEW);
     }
 
-    private static void write(Path path, String content) throws IOException {
-        Files.writeString(path, content, StandardCharsets.UTF_8,
-                StandardOpenOption.CREATE_NEW);
+    private static NetBeansFunctionExecutor.FunctionResult created(Path file, String message) throws IOException {
+        String content = new String(Files.readAllBytes(file), StandardCharsets.UTF_8);
+        return NetBeansFunctionExecutor.FunctionResult.success(message, Map.of(
+                "filePath", file.toString(), "content", content, "size", content.length(), "status", "created"));
     }
 
     private static String required(Map<String, Object> args, String key) {
         String value = optional(args, key);
-        if (value.isBlank()) {
-            throw new IllegalArgumentException("Parâmetro obrigatório: " + key);
-        }
+        if (value.isEmpty()) throw new IllegalArgumentException("Parâmetro obrigatório: " + key);
         return value;
     }
 
@@ -252,69 +185,35 @@ public final class RealCodeTools {
         return value == null ? "" : String.valueOf(value).trim();
     }
 
-    private static List<String> stringList(Object value) {
-        if (!(value instanceof List<?>)) {
-            return List.of();
-        }
+    private static List<String> strings(Object value) {
+        if (!(value instanceof List<?>)) return new ArrayList<>();
         List<String> result = new ArrayList<>();
-        for (Object entry : (List<?>) value) {
-            if (entry != null && !String.valueOf(entry).isBlank()) {
-                result.add(String.valueOf(entry).trim());
-            }
-        }
+        for (Object item : (List<?>) value) if (item != null && !String.valueOf(item).trim().isEmpty()) result.add(String.valueOf(item).trim());
         return result;
     }
 
-    private static void appendPackage(StringBuilder code, String packageName) {
-        if (!packageName.isBlank()) {
-            code.append("package ").append(packageName).append(";\n\n");
-        }
-    }
-
-    private static String normalizeInterfaceMethod(String method) {
-        String value = method.trim();
-        return value.endsWith(";") ? value : value + ";";
-    }
-
-    private static NetBeansFunctionExecutor.FunctionResult success(
-            String message, Path path, String content) {
-        return NetBeansFunctionExecutor.FunctionResult.success(message, Map.of(
-                "filePath", path.toString(),
-                "content", content,
-                "size", content.length(),
-                "status", "created"));
-    }
-
-    private static String packageFromWorkspace() {
-        return "";
-    }
-
-    private static Element firstChild(Element parent, String tagName) {
-        for (var child = parent.getFirstChild(); child != null; child = child.getNextSibling()) {
-            if (child instanceof Element && tagName.equals(child.getNodeName())) {
-                return (Element) child;
-            }
+    private static Element firstChild(Element parent, String tag) {
+        for (org.w3c.dom.Node node = parent.getFirstChild(); node != null; node = node.getNextSibling()) {
+            if (node instanceof Element && tag.equals(node.getNodeName())) return (Element) node;
         }
         return null;
     }
 
-    private static List<Element> children(Element parent, String tagName) {
+    private static List<Element> children(Element parent, String tag) {
         List<Element> result = new ArrayList<>();
-        for (var child = parent.getFirstChild(); child != null; child = child.getNextSibling()) {
-            if (child instanceof Element && tagName.equals(child.getNodeName())) {
-                result.add((Element) child);
-            }
+        for (org.w3c.dom.Node node = parent.getFirstChild(); node != null; node = node.getNextSibling()) {
+            if (node instanceof Element && tag.equals(node.getNodeName())) result.add((Element) node);
         }
         return result;
     }
 
-    private static String text(Element parent, String tagName) {
-        Element element = firstChild(parent, tagName);
-        return element == null ? "" : element.getTextContent().trim();
+    private static String text(Element parent, String tag) {
+        Element child = firstChild(parent, tag);
+        return child == null ? "" : child.getTextContent().trim();
     }
 
-    private static void appendElement(Document document, Element parent, String name, String value) {
-        Element child = document.createElement(name);
+    private static void append(Document document, Element parent, String tag, String value) {
+        Element child = document.createElement(tag);
         child.setTextContent(value);
         parent.appendChild(child);
     }
