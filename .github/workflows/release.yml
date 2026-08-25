@@ -1,0 +1,105 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Set up JDK 11
+        uses: actions/setup-java@v4
+        with:
+          java-version: '11'
+          distribution: 'temurin'
+          cache: 'maven'
+      
+      - name: Build with Maven
+        run: mvn clean install -DskipTests
+      
+      - name: Run tests
+        run: mvn test
+      
+      - name: Generate coverage report
+        run: mvn jacoco:report
+      
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          file: target/jacoco.exec
+          flags: unittests
+          name: codecov-umbrella
+      
+      - name: Build NBM package
+        run: mvn package -DskipTests
+      
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: nbm-package
+          path: target/*.nbm
+          retention-days: 30
+
+  release:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Set up JDK 11
+        uses: actions/setup-java@v4
+        with:
+          java-version: '11'
+          distribution: 'temurin'
+          cache: 'maven'
+      
+      - name: Get version from pom.xml
+        id: version
+        run: |
+          VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+      
+      - name: Build release package
+        run: mvn clean package -DskipTests
+      
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: Continue Beans v${{ steps.version.outputs.version }}
+          body: |
+            ## Continue Beans AI Assistant v${{ steps.version.outputs.version }}
+            
+            ### Features
+            - Complete function calling system with NetBeans APIs
+            - Plugin/module management integration
+            - Professional UI components
+            - MCP tools integration
+            - Enterprise-grade architecture
+            
+            ### Installation
+            Download the .nbm file and install via NetBeans Plugin Manager.
+            
+            ### Changelog
+            See [CHANGELOG.md](docs/CHANGELOG.md) for detailed changes.
+          files: |
+            target/*.nbm
+            target/*.jar
+          draft: false
+          prerelease: ${{ contains(steps.version.outputs.version, 'SNAPSHOT') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

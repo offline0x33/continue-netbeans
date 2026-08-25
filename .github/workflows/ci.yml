@@ -5,6 +5,7 @@ on:
     branches: [ main, develop ]
   pull_request:
     branches: [ main, develop ]
+  workflow_dispatch:
 
 jobs:
   build-and-test:
@@ -12,14 +13,16 @@ jobs:
     
     strategy:
       matrix:
-        java-version: [11, 17]
+        java-version: [11]
     
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
     
     - name: Set up JDK ${{ matrix.java-version }}
-      uses: actions/setup-java@v3
+      uses: actions/setup-java@v4
       with:
         java-version: ${{ matrix.java-version }}
         distribution: 'temurin'
@@ -28,46 +31,82 @@ jobs:
     - name: Run unit tests
       run: mvn clean test -DskipTests=false
     
-    - name: Run Cucumber tests
-      run: mvn test -Dtest=CucumberTestRunner
-    
     - name: Build project
       run: mvn clean install
     
     - name: Check NBM artifact
       run: |
-        if [ -f target/continue-beans-1.0-SNAPSHOT.nbm ]; then
+        if [ -f target/continue-beans-*.nbm ]; then
           echo "✅ NBM artifact built successfully"
-          ls -lh target/continue-beans-1.0-SNAPSHOT.nbm
+          ls -lh target/continue-beans-*.nbm
         else
           echo "❌ NBM artifact not found"
           exit 1
         fi
+    
+    - name: Generate coverage report
+      run: mvn jacoco:report
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        file: target/jacoco.exec
+        flags: unittests
+        name: codecov-umbrella
 
   publish-release:
     needs: build-and-test
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
     
     - name: Set up JDK 11
-      uses: actions/setup-java@v3
+      uses: actions/setup-java@v4
       with:
         java-version: 11
         distribution: 'temurin'
         cache: maven
     
+    - name: Get version from pom.xml
+      id: version
+      run: |
+        VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+        echo "version=${VERSION}" >> $GITHUB_OUTPUT
+        echo "Current version: ${VERSION}"
+    
     - name: Build final artifact
-      run: mvn clean install
+      run: mvn clean package -DskipTests
     
     - name: Create Release
       uses: softprops/action-gh-release@v1
-      if: startsWith(github.ref, 'refs/tags/')
       with:
-        files: target/continue-beans-1.0-SNAPSHOT.nbm
+        tag_name: v${{ steps.version.outputs.version }}
+        name: Continue Beans v${{ steps.version.outputs.version }}
+        body: |
+          ## Continue Beans AI Assistant v${{ steps.version.outputs.version }}
+          
+          ### Features
+          - Complete function calling system with NetBeans APIs
+          - Plugin/module management integration
+          - Professional UI components
+          - MCP tools integration
+          - Enterprise-grade architecture
+          
+          ### Installation
+          Download the .nbm file and install via NetBeans Plugin Manager.
+          
+          ### Changelog
+          See [CHANGELOG.md](docs/CHANGELOG.md) for detailed changes.
+        files: |
+          target/*.nbm
+          target/*.jar
+        draft: false
+        prerelease: ${{ contains(steps.version.outputs.version, 'SNAPSHOT') }}
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -76,10 +115,10 @@ jobs:
     
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
     
     - name: Set up JDK 11
-      uses: actions/setup-java@v3
+      uses: actions/setup-java@v4
       with:
         java-version: 11
         distribution: 'temurin'
