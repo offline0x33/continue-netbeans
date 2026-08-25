@@ -13,7 +13,7 @@ public class ConversationManager {
 
     private static final int DEFAULT_MAX_TOKENS = 4000;
 
-    private List<JsonObject> messages = new ArrayList<>();
+    private final List<JsonObject> messages = new ArrayList<>();
     private int maxTokens;
 
     public ConversationManager(int maxTokens) {
@@ -28,7 +28,7 @@ public class ConversationManager {
      * Add a message to conversation history.
      * Automatically truncates old messages if context window is exceeded.
      */
-    public void addMessage(String role, String content) {
+    public synchronized void addMessage(String role, String content) {
         JsonObject message = new JsonObject();
         message.addProperty("role", role);
         message.addProperty("content", content);
@@ -40,7 +40,7 @@ public class ConversationManager {
     /**
      * Add a message object directly.
      */
-    public void addMessage(JsonObject message) {
+    public synchronized void addMessage(JsonObject message) {
         messages.add(message);
         truncateIfNeeded();
     }
@@ -48,10 +48,10 @@ public class ConversationManager {
     /**
      * Get all messages as JsonArray.
      */
-    public JsonArray getMessagesArray() {
+    public synchronized JsonArray getMessagesArray() {
         JsonArray array = new JsonArray();
         for (JsonObject msg : messages) {
-            array.add(msg);
+            array.add(msg.deepCopy());
         }
         return array;
     }
@@ -59,7 +59,7 @@ public class ConversationManager {
     /**
      * Get messages formatted as string for display.
      */
-    public String getConversationHistory() {
+    public synchronized String getConversationHistory() {
         StringBuilder sb = new StringBuilder();
         for (JsonObject msg : messages) {
             String role = msg.get("role").getAsString();
@@ -72,7 +72,7 @@ public class ConversationManager {
     /**
      * Get current token count of all messages.
      */
-    public int getTokenCount() {
+    public synchronized int getTokenCount() {
         int count = 0;
         for (JsonObject msg : messages) {
             String content = msg.get("content").getAsString();
@@ -87,7 +87,6 @@ public class ConversationManager {
      */
     private void truncateIfNeeded() {
         while (getTokenCount() > maxTokens && messages.size() > 1) {
-            // Find first non-system message and remove it
             for (int i = 0; i < messages.size(); i++) {
                 String role = messages.get(i).get("role").getAsString();
                 if (!"system".equalsIgnoreCase(role)) {
@@ -96,7 +95,6 @@ public class ConversationManager {
                 }
             }
 
-            // If we only have system message, we still exceeded limit - remove it too
             if (getTokenCount() > maxTokens && messages.size() == 1) {
                 String role = messages.get(0).get("role").getAsString();
                 if (!"system".equalsIgnoreCase(role)) {
@@ -109,23 +107,28 @@ public class ConversationManager {
     /**
      * Clear all messages.
      */
-    public void clear() {
+    public synchronized void clear() {
         messages.clear();
     }
 
     /**
      * Get number of messages.
      */
-    public int getMessageCount() {
+    public synchronized int getMessageCount() {
         return messages.size();
     }
 
     /**
      * Get last N messages (useful for context preview).
+     * Returned messages are copies so callers cannot mutate internal state.
      */
-    public List<JsonObject> getLastMessages(int count) {
+    public synchronized List<JsonObject> getLastMessages(int count) {
         int startIndex = Math.max(0, messages.size() - count);
-        return new ArrayList<>(messages.subList(startIndex, messages.size()));
+        List<JsonObject> result = new ArrayList<>();
+        for (JsonObject message : messages.subList(startIndex, messages.size())) {
+            result.add(message.deepCopy());
+        }
+        return result;
     }
 
     /**
@@ -136,16 +139,14 @@ public class ConversationManager {
         if (text == null) {
             return 0;
         }
-        // More accurate: split by spaces and count words
-        // Average word = 4-5 chars = 1 token
         int wordCount = text.trim().split("\\s+").length;
-        return Math.max(1, (int) Math.ceil(wordCount * 1.3)); // 1.3 for overhead
+        return Math.max(1, (int) Math.ceil(wordCount * 1.3));
     }
 
     /**
      * Set custom max tokens.
      */
-    public void setMaxTokens(int maxTokens) {
+    public synchronized void setMaxTokens(int maxTokens) {
         this.maxTokens = maxTokens;
         truncateIfNeeded();
     }
@@ -153,14 +154,14 @@ public class ConversationManager {
     /**
      * Check if conversation is at token limit.
      */
-    public boolean isAtTokenLimit() {
+    public synchronized boolean isAtTokenLimit() {
         return getTokenCount() >= maxTokens;
     }
 
     /**
      * Get remaining token capacity.
      */
-    public int getRemainingTokens() {
+    public synchronized int getRemainingTokens() {
         return Math.max(0, maxTokens - getTokenCount());
     }
 
@@ -168,7 +169,7 @@ public class ConversationManager {
      * Get summary of conversation (for logging).
      */
     @Override
-    public String toString() {
+    public synchronized String toString() {
         return String.format("ConversationManager{messages=%d, tokens=%d/%d, remaining=%d}",
                 messages.size(), getTokenCount(), maxTokens, getRemainingTokens());
     }
