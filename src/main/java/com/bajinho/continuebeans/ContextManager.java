@@ -15,27 +15,26 @@ public class ContextManager {
 
     private static final Pattern FILE_PATTERN = Pattern.compile("@file:(\\S+)");
     private static final Pattern CODEBASE_PATTERN = Pattern.compile("@codebase");
+    private static final int DEFAULT_MAX_CONTEXT_CHARS = 16_000;
+    private static final int DEFAULT_MAX_CODEBASE_FILES = 200;
 
     public static String processContext(String input, String currentWorkDir) {
         StringBuilder promptWithContext = new StringBuilder(input);
 
-        // Add automatic project context if no explicit commands are used
         boolean hasExplicitContext = CODEBASE_PATTERN.matcher(input).find()
                 || FILE_PATTERN.matcher(input).find();
 
         if (!hasExplicitContext && currentWorkDir != null) {
-            // Add basic project info automatically
             String projectName = new File(currentWorkDir).getName();
-            promptWithContext.insert(0, "Contexto: Você está assistindo no projeto '" + projectName + "'. ");
+            promptWithContext.insert(0,
+                    "Contexto: Você está assistindo no projeto '" + projectName + "'. ");
 
-            // Add brief project structure (limited to avoid too much context)
             CodebaseIndexer indexer = new CodebaseIndexer(currentWorkDir);
-            indexer.setMaxDepth(3); // Shallow for auto-context
-            indexer.setMaxFiles(20); // Limited files
+            indexer.setMaxDepth(3);
+            indexer.setMaxFiles(20);
             String structure = indexer.scanDirectory(currentWorkDir);
 
             if (structure != null && !structure.trim().isEmpty()) {
-                // Take first few lines of structure
                 String[] lines = structure.split("\\n");
                 StringBuilder briefStructure = new StringBuilder();
                 for (int i = 0; i < Math.min(lines.length, 10); i++) {
@@ -47,36 +46,28 @@ public class ContextManager {
             }
         }
 
-        // Process @codebase (full structure)
         if (CODEBASE_PATTERN.matcher(input).find()) {
             String structure = getProjectStructure(currentWorkDir);
             promptWithContext.append("\\n\\nEstrutura completa do Projeto (@codebase):\\n```\\n")
                     .append(structure).append("\\n```");
         }
 
-        // Process @file:
         Matcher matcher = FILE_PATTERN.matcher(input);
-
         while (matcher.find()) {
             String filePath = matcher.group(1);
             String content = readFileContent(filePath, currentWorkDir);
             if (content != null) {
-                promptWithContext.append("\\n\\nConteúdo do arquivo @file:").append(filePath).append(":\\n```\\n")
+                promptWithContext.append("\\n\\nConteúdo do arquivo @file:").append(filePath)
+                        .append(":\\n```\\n")
                         .append(content).append("\\n```");
                 appendNativeJavaLanguageContext(promptWithContext, filePath, currentWorkDir);
             } else {
-                promptWithContext.append("\\n\\n[ERRO: Não foi possível carregar o arquivo: ").append(filePath)
-                        .append("]");
+                promptWithContext.append("\\n\\n[ERRO: Não foi possível carregar o arquivo: ")
+                        .append(filePath).append("]");
             }
         }
 
-        // Truncation Logic (Enterprise Rule)
-        if (promptWithContext.length() > 4000) {
-            String truncated = promptWithContext.substring(0, 4000);
-            return truncated + "\\n... [Contexto Truncado]";
-        }
-
-        return promptWithContext.toString();
+        return limitContext(promptWithContext.toString(), input);
     }
 
     private static void appendNativeJavaLanguageContext(StringBuilder prompt, String path, String currentWorkDir) {
@@ -124,6 +115,45 @@ public class ContextManager {
         return file.getAbsolutePath();
     }
 
+    static String limitContext(String context) {
+        return limitContext(context, context);
+    }
+
+    static String limitContext(String context, String originalInput) {
+        int maxChars = getMaxContextChars();
+        if (context.length() <= maxChars) {
+            return context;
+        }
+
+        int markerLength = 96;
+        String prefix = originalInput == null ? "" : originalInput;
+        int available = Math.max(0, maxChars - prefix.length() - markerLength);
+        int tailChars = Math.min(available, Math.max(0, context.length() - prefix.length()));
+
+        String marker = "\\n... [Contexto Truncado para " + maxChars + " caracteres; "
+                + "pedido original preservado e fim do contexto preservado] ...\\n";
+
+        if (prefix.length() >= context.length()) {
+            return prefix;
+        }
+
+        return prefix + marker + context.substring(context.length() - tailChars);
+    }
+
+    static int getMaxContextChars() {
+        String configured = System.getProperty("continue.context.maxChars");
+        if (configured == null || configured.isBlank()) {
+            return DEFAULT_MAX_CONTEXT_CHARS;
+        }
+
+        try {
+            int value = Integer.parseInt(configured);
+            return value > 512 ? value : DEFAULT_MAX_CONTEXT_CHARS;
+        } catch (NumberFormatException ignored) {
+            return DEFAULT_MAX_CONTEXT_CHARS;
+        }
+    }
+
     private static String readFileContent(String path, String currentWorkDir) {
         try {
             File f = new File(path);
@@ -135,7 +165,6 @@ public class ContextManager {
                 return Files.readString(f.toPath());
             }
 
-            // Tentar via FileObject do NetBeans (pode estar no classpath ou projeto aberto)
             FileObject fo = FileUtil.toFileObject(f);
             if (fo != null) {
                 return fo.asText();
@@ -147,13 +176,13 @@ public class ContextManager {
     }
 
     private static String getProjectStructure(String rootPath) {
-        if (rootPath == null)
+        if (rootPath == null) {
             return "Diretório do projeto não identificado.";
+        }
 
         CodebaseIndexer indexer = new CodebaseIndexer(rootPath);
-        indexer.setMaxDepth(5);
-        indexer.setMaxFiles(50);
-
+        indexer.setMaxDepth(8);
+        indexer.setMaxFiles(DEFAULT_MAX_CODEBASE_FILES);
         return indexer.scanDirectory(rootPath);
     }
 }
