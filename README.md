@@ -96,11 +96,11 @@ As correções recentes também endureceram o histórico de conversas contra con
 
 ## Interface
 
-O projeto possui uma interface principal baseada no `ProfessionalTopComponent`/`ProfessionalChatPanel` e componentes legados que ainda fazem parte da base de código. A consolidação desses caminhos deve ser tratada como evolução arquitetural, não como funcionalidade já concluída.
+A experiência de chat está convergindo para uma única linguagem visual Dark Theme. A especificação abaixo é o contrato visual do produto: ela define cores, tipografia, densidade, componentes, estados e hierarquia da interface.
+
+A implementação da especificação está sendo validada na [PR #7](https://github.com/offline0x33/continue-netbeans/pull/7). Enquanto essa PR não for incorporada ao `main`, o README não considera a nova aparência como estado de produção do branch principal.
 
 ### Especificação visual — Chat Dark Theme
-
-A aparência do chat é parte importante do produto e deve ser tratada como um contrato visual. A especificação abaixo descreve a direção visual atual para implementação e reprodução no Figma ou em outra ferramenta UI/UX.
 
 #### 🎨 System Tokens & Design System
 
@@ -139,7 +139,7 @@ A aparência do chat é parte importante do produto e deve ser tratada como um c
 | Main Scrollable Area                                                              |
 |                                                                                   |
 |  - Code Snippet (release.yml)                                                     |
-|  - AI Thought Logs & Status Message                                              |
+|  - AI Thought Logs & Status Message                                               |
 |  - Code Snippet (ci.yml)                                                          |
 |  - Tasks Collapsible Panel                                                        |
 |  - Warning Banner (Quota Limit)                                                   |
@@ -159,10 +159,7 @@ A aparência do chat é parte importante do produto e deve ser tratada como um c
 
 - Altura: **40px**
 - Fundo: `#121214` na aba ativa / `#09090B` no restante da barra
-- Aba ativa:
-  - ícone circular do plugin
-  - título **NetBeans Plugin Integration**
-  - botão de fechar `X`
+- Aba ativa: ícone circular do plugin, título **NetBeans Plugin Integration** e botão `X`
 - Ações à direita: ícone de divisão de tela/janela
 
 ##### 2. Code Snippet Card
@@ -171,14 +168,8 @@ A aparência do chat é parte importante do produto e deve ser tratada como um c
 - Borda: `1px solid #27272A`
 - Radius: `8px`
 - Padding: `12px 16px`
-
-**Header:** ícone do tipo de arquivo, nome (`release.yml`/`ci.yml`), badge opcional `new` e contadores de diff (`+106` / `-31`).
-
-**Content:**
-
-- fonte monospace 13px, line-height 1.5
-- chaves/valores principais: `#4ADE80`
-- valores secundários: `#A1A1AA`
+- Header com ícone do arquivo, nome (`release.yml`/`ci.yml`), badge opcional `new` e contadores de diff (`+106` / `-31`)
+- Conteúdo em monospace 13px, line-height 1.5, com destaque verde para chaves/valores relevantes e cinza para valores secundários
 
 ##### 3. AI Log Line — “Thought for X s”
 
@@ -186,8 +177,8 @@ A aparência do chat é parte importante do produto e deve ser tratada como um c
 - Fonte: 13px
 - Cor: `#A1A1AA`
 - Ícone de pensamento + texto `Thought for 1s`, `Thought for 9s`, etc.
-- Referências a arquivos aparecem como links azuis, por exemplo `.github/workflows` e `ci.yml`.
-- Mensagens de falha/cancelamento aparecem como texto simples e legível.
+- Referências a arquivos aparecem como links azuis
+- Falhas/cancelamentos aparecem como mensagens de status legíveis
 
 ##### 4. Tasks Panel
 
@@ -196,7 +187,7 @@ A aparência do chat é parte importante do produto e deve ser tratada como um c
 - Borda: `1px solid #27272A`
 - Radius: `8px`
 - Padding: `12px 16px`
-- Tarefa concluída: check circular em `#4ADE80` + texto `#E4E4E7`
+- Tarefa concluída: check circular `#4ADE80` + texto `#E4E4E7`
 - Tarefa pendente: círculo vazado `#52525B` + texto `#A1A1AA`
 - Altura aproximada por item: **24px**
 
@@ -207,7 +198,7 @@ A aparência do chat é parte importante do produto e deve ser tratada como um c
 - Radius: `8px`
 - Padding: `10px 14px`
 - Ícone triangular em `#F97316`
-- Link de ação destacado e sublinhado em `#F97316`
+- Ação destacada e sublinhada em `#F97316`
 
 Texto de referência:
 
@@ -234,11 +225,11 @@ Posicionado à direita abaixo dos logs e banners.
 - Radius: `12px`
 - Padding: `12px 16px`
 
-**Linha superior:**
+Linha superior:
 
 `Tip: Type @ conversation to bring in context from another chat`
 
-**Barra inferior:**
+Barra inferior:
 
 - `+` para anexos/ações
 - `< > Code` para alternar modo de código
@@ -257,14 +248,14 @@ Posicionado à direita abaixo dos logs e banners.
 
 ### Diretriz de implementação visual
 
-A implementação deve preservar a hierarquia visual acima mesmo quando algum recurso ainda não existir no backend. Componentes podem inicialmente aparecer como estado desabilitado, vazio ou de placeholder, mas a estrutura visual, espaçamento, densidade e linguagem de interação devem permanecer consistentes.
+A implementação deve preservar a hierarquia visual acima mesmo quando algum recurso ainda não existir no backend. Componentes podem inicialmente aparecer como estado desabilitado, vazio ou placeholder, mas a estrutura visual, espaçamento, densidade e linguagem de interação devem permanecer consistentes.
 
-A consolidação da UI atual deve convergir para essa linguagem visual, evitando criar uma terceira interface paralela.
+A implementação oficial deve convergir para um único caminho de UI. O `ProfessionalTopComponent` é o ponto de entrada destinado a consolidar essa experiência; não devemos criar uma terceira implementação paralela do chat.
 
 ## Roadmap técnico
 
 - Consolidar os caminhos de UI duplicados sem quebrar compatibilidade do módulo.
-- Implementar e validar a especificação visual Dark Theme como referência única para o chat.
+- Concluir a validação e incorporação da nova UI Dark Theme no `main`.
 - Reduzir código de scaffolding e funcionalidades não conectadas ao fluxo principal.
 - Expandir a cobertura dos provedores e integrações MCP com testes de comportamento reais.
 - Melhorar cancelamento e ciclo de vida de operações assíncronas do streaming.
