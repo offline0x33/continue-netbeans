@@ -2,12 +2,12 @@ Manifest-Version: 1.0
 OpenIDE-Module: com.bajinho.continue.beans
 OpenIDE-Module-Display-Category: Tools
 OpenIDE-Module-Name: Continue Beans AI Assistant
-OpenIDE-Module-Short-Description: Enterprise-grade AI assistant with MCP tools
-OpenIDE-Module-Long-Description: Professional AI-powered development assistant for Apache NetBeans with comprehensive Model Context Protocol (MCP) tools integration. Supports multiple AI providers including LM Studio, Ollama, OpenAI, and Claude.
+OpenIDE-Module-Short-Description: AI assistant with MCP tools
+OpenIDE-Module-Long-Description: AI-powered development assistant for Apache NetBeans with Model Context Protocol (MCP) tools integration.
 OpenIDE-Module-Specification-Version: 2.0
 OpenIDE-Module-Implementation-Version: 2
 OpenIDE-Module-LocalizingBundle: com/bajinho/continuebeans/ui/Bundle.properties
-OpenIDE-Module-Layer: com/bajinho/continuebeans/ui/layer.xml
+OpenIDE-Module-Layer: layer.xml
 OpenIDE-Module-Requires: org.openide.modules.ModuleInstall
 AutoUpdate-Show-In-Client: true
 AutoUpdate-Essential-Module: false
