@@ -320,9 +320,7 @@ public class ChatPanel extends JPanel {
     }
 
     private void appendTaskPanel() {
-        if (taskPanelHost.getParent() != null) {
-            conversationPanel.add(taskPanelHost);
-        }
+        conversationPanel.add(taskPanelHost);
         conversationPanel.add(Box.createVerticalStrut(6));
         refreshConversation();
     }
