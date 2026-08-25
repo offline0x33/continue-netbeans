@@ -1,6 +1,7 @@
 package com.bajinho.continuebeans.ai;
 
 import com.bajinho.continuebeans.ContinueSettings;
+import com.bajinho.continuebeans.security.ToolExecutionPolicy;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -27,7 +28,7 @@ import java.util.logging.Logger;
  * services. The agent loop is:</p>
  *
  * <pre>
- * user -> model + tools -> tool_calls -> executor -> tool results -> model -> final answer
+ * user -> model + tools -> tool_calls -> policy -> executor -> tool results -> model -> final answer
  * </pre>
  */
 public class AIToolCallingIntegration {
@@ -50,13 +51,6 @@ public class AIToolCallingIntegration {
         this.gson = new Gson();
     }
 
-    /**
-     * Process a user request through a real OpenAI-compatible tool-calling loop.
-     *
-     * @param userMessage user prompt
-     * @param aiProvider provider label used for diagnostics; endpoint is read from settings
-     * @return final assistant response
-     */
     public CompletableFuture<AIResponse> processRequestWithToolCalling(String userMessage, String aiProvider) {
         if (userMessage == null || userMessage.isBlank()) {
             return CompletableFuture.completedFuture(AIResponse.error("Mensagem do usuário é obrigatória."));
@@ -82,7 +76,6 @@ public class AIToolCallingIntegration {
                     return AIResponse.text(readContent(choiceMessage));
                 }
 
-                // Preserve the assistant tool-call message verbatim for the second model turn.
                 messages.add(choiceMessage);
 
                 for (JsonElement toolCallElement : toolCalls) {
@@ -93,6 +86,16 @@ public class AIToolCallingIntegration {
                             ? function.get("arguments").getAsString()
                             : "{}";
                     Map<String, Object> arguments = parseArguments(rawArguments);
+
+                    try {
+                        ToolExecutionPolicy.validate(functionName, arguments);
+                    } catch (SecurityException denied) {
+                        LOG.warning(() -> "AI tool blocked by policy: " + functionName + " - " + denied.getMessage());
+                        JsonObject deniedMessage = message("tool", "ERROR: " + denied.getMessage());
+                        deniedMessage.addProperty("tool_call_id", toolCall.get("id").getAsString());
+                        messages.add(deniedMessage);
+                        continue;
+                    }
 
                     LOG.info(() -> "Executing AI tool: " + functionName + " via " + aiProvider);
                     NetBeansFunctionExecutor.FunctionResult result =
@@ -269,7 +272,13 @@ public class AIToolCallingIntegration {
 
     public CompletableFuture<NetBeansFunctionExecutor.FunctionResult> executeFunction(
             String functionName, Map<String, Object> arguments) {
-        return functionExecutor.executeFunction(functionName, arguments);
+        try {
+            ToolExecutionPolicy.validate(functionName, arguments);
+            return functionExecutor.executeFunction(functionName, arguments);
+        } catch (SecurityException denied) {
+            return CompletableFuture.completedFuture(
+                    NetBeansFunctionExecutor.FunctionResult.error(denied.getMessage()));
+        }
     }
 
     public static class AIResponse {
