@@ -10,7 +10,7 @@
     <packaging>nbm</packaging>
     <name>Continue Beans AI Assistant</name>
     <description>Enterprise-grade AI assistant for Apache NetBeans with MCP tools integration</description>
-    <url>https://github.com/offline0x33/continue-netbeans</url>
+    <url>https://github.com/bajinho/continue-netbeans</url>
 
     <licenses>
         <license>
@@ -22,15 +22,18 @@
 
     <developers>
         <developer>
-            <id>offline0x33</id>
+            <id>bajinho</id>
             <name>Continue Beans Team</name>
+            <email>dev@continuebeans.apache.org</email>
+            <organization>Apache Software Foundation</organization>
+            <organizationUrl>https://www.apache.org</organizationUrl>
         </developer>
     </developers>
 
     <scm>
-        <connection>scm:git:https://github.com/offline0x33/continue-netbeans.git</connection>
-        <developerConnection>scm:git:https://github.com/offline0x33/continue-netbeans.git</developerConnection>
-        <url>https://github.com/offline0x33/continue-netbeans</url>
+        <connection>scm:git:https://github.com/bajinho/continue-netbeans.git</connection>
+        <developerConnection>scm:git:https://github.com/bajinho/continue-netbeans.git</developerConnection>
+        <url>https://github.com/bajinho/continue-netbeans</url>
     </scm>
 
     <issueManagement>
@@ -41,7 +44,8 @@
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <netbeans.version>RELEASE200</netbeans.version>
-        <maven.compiler.release>11</maven.compiler.release>
+        <maven.compiler.source>11</maven.compiler.source>
+        <maven.compiler.target>11</maven.compiler.target>
     </properties>
 
     <build>
@@ -107,20 +111,20 @@
                                         </limit>
                                     </limits>
                                     <excludes>
-                                        <exclude>com/bajinho/continuebeans/netbeans/**</exclude>
-                                        <exclude>com/bajinho/continuebeans/assistant/**</exclude>
-                                        <exclude>com/bajinho/continuebeans/analytics/**</exclude>
-                                        <exclude>com/bajinho/continuebeans/filesystem/**</exclude>
-                                        <exclude>com/bajinho/continuebeans/editor/**</exclude>
-                                        <exclude>com/bajinho/continuebeans/security/**</exclude>
-                                        <exclude>com/bajinho/continuebeans/cloud/**</exclude>
-                                        <exclude>com/bajinho/continuebeans/ai/**</exclude>
-                                        <exclude>com/bajinho/continuebeans/system/**</exclude>
-                                        <exclude>com/bajinho/continuebeans/deployment/**</exclude>
-                                        <exclude>com/bajinho/continuebeans/mcp/**</exclude>
-                                        <exclude>com/bajinho/continuebeans/microservices/**</exclude>
-                                        <exclude>com/bajinho/continuebeans/ui/**</exclude>
-                                        <exclude>com/bajinho/continuebeans/automation/**</exclude>
+                                        <exclude>**/netbeans/**</exclude>
+                                        <exclude>**/assistant/**</exclude>
+                                        <exclude>**/analytics/**</exclude>
+                                        <exclude>**/filesystem/**</exclude>
+                                        <exclude>**/editor/**</exclude>
+                                        <exclude>**/security/**</exclude>
+                                        <exclude>**/cloud/**</exclude>
+                                        <exclude>**/ai/**</exclude>
+                                        <exclude>**/system/**</exclude>
+                                        <exclude>**/deployment/**</exclude>
+                                        <exclude>**/mcp/**</exclude>
+                                        <exclude>**/microservices/**</exclude>
+                                        <exclude>**/ui/**</exclude>
+                                        <exclude>**/automation/**</exclude>
                                     </excludes>
                                 </rule>
                             </rules>
@@ -216,12 +220,49 @@
         <dependency><groupId>org.netbeans.api</groupId><artifactId>org-openide-filesystems</artifactId><version>${netbeans.version}</version></dependency>
         <dependency><groupId>org.netbeans.api</groupId><artifactId>org-openide-modules</artifactId><version>${netbeans.version}</version></dependency>
         <dependency><groupId>org.netbeans.api</groupId><artifactId>org-openide-nodes</artifactId><version>${netbeans.version}</version></dependency>
-        <dependency><groupId>io.cucumber</groupId><artifactId>cucumber-java</artifactId><version>7.14.0</version><scope>test</scope></dependency>
-        <dependency><groupId>io.cucumber</groupId><artifactId>cucumber-junit-platform-engine</artifactId><version>7.14.0</version><scope>test</scope></dependency>
-        <dependency><groupId>org.junit.platform</groupId><artifactId>junit-platform-suite</artifactId><version>1.10.0</version><scope>test</scope></dependency>
-        <dependency><groupId>org.junit.jupiter</groupId><artifactId>junit-jupiter-api</artifactId><version>5.10.0</version><scope>test</scope></dependency>
-        <dependency><groupId>org.mockito</groupId><artifactId>mockito-core</artifactId><version>5.14.2</version><scope>test</scope></dependency>
-        <dependency><groupId>net.bytebuddy</groupId><artifactId>byte-buddy</artifactId><version>1.15.10</version><scope>test</scope></dependency>
-        <dependency><groupId>net.bytebuddy</groupId><artifactId>byte-buddy-agent</artifactId><version>1.15.10</version><scope>test</scope></dependency>
+
+        <!-- Testing Dependencies -->
+        <dependency>
+            <groupId>io.cucumber</groupId>
+            <artifactId>cucumber-java</artifactId>
+            <version>7.14.0</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.cucumber</groupId>
+            <artifactId>cucumber-junit-platform-engine</artifactId>
+            <version>7.14.0</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.platform</groupId>
+            <artifactId>junit-platform-suite</artifactId>
+            <version>1.10.0</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-api</artifactId>
+            <version>5.10.0</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+            <version>5.12.0</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>net.bytebuddy</groupId>
+            <artifactId>byte-buddy</artifactId>
+            <version>1.14.10</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>net.bytebuddy</groupId>
+            <artifactId>byte-buddy-agent</artifactId>
+            <version>1.14.10</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 </project>
