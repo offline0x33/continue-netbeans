@@ -18,7 +18,7 @@ class ContextManagerTest {
 
         assertTrue(result.startsWith("@file:" + file));
         assertTrue(result.contains("END-MARKER"));
-        assertTrue(result.contains("[Contexto truncado para"));
+        assertTrue(result.contains("[Contexto Truncado para"));
     }
 
     @Test
