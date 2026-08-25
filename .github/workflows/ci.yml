@@ -10,44 +10,48 @@ on:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
-    
+
     strategy:
+      fail-fast: false
       matrix:
-        java-version: [11]
-    
+        java-version: [11, 17, 21]
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
       with:
         fetch-depth: 0
-    
+
     - name: Set up JDK ${{ matrix.java-version }}
       uses: actions/setup-java@v4
       with:
         java-version: ${{ matrix.java-version }}
         distribution: 'temurin'
         cache: maven
-    
+
     - name: Run unit tests
-      run: mvn clean test -DskipTests=false
-    
+      run: mvn -B clean test -DskipTests=false
+
     - name: Build project
-      run: mvn clean install
-    
+      run: mvn -B clean install -DskipTests
+
     - name: Check NBM artifact
+      shell: bash
       run: |
-        if [ -f target/continue-beans-*.nbm ]; then
-          echo "✅ NBM artifact built successfully"
-          ls -lh target/continue-beans-*.nbm
-        else
+        shopt -s nullglob
+        artifacts=(target/*.nbm)
+        if [ ${#artifacts[@]} -eq 0 ]; then
           echo "❌ NBM artifact not found"
           exit 1
         fi
-    
+        printf '✅ NBM artifact(s):\n%s\n' "${artifacts[@]}"
+
     - name: Generate coverage report
-      run: mvn jacoco:report
-    
+      if: matrix.java-version == 11
+      run: mvn -B jacoco:report
+
     - name: Upload coverage to Codecov
+      if: matrix.java-version == 11
       uses: codecov/codecov-action@v4
       with:
         file: target/jacoco.exec
@@ -58,30 +62,30 @@ jobs:
     needs: build-and-test
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
       with:
         fetch-depth: 0
-    
+
     - name: Set up JDK 11
       uses: actions/setup-java@v4
       with:
         java-version: 11
         distribution: 'temurin'
         cache: maven
-    
+
     - name: Get version from pom.xml
       id: version
       run: |
         VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
-        echo "version=${VERSION}" >> $GITHUB_OUTPUT
+        echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
         echo "Current version: ${VERSION}"
-    
+
     - name: Build final artifact
-      run: mvn clean package -DskipTests
-    
+      run: mvn -B clean package -DskipTests
+
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
@@ -89,19 +93,8 @@ jobs:
         name: Continue Beans v${{ steps.version.outputs.version }}
         body: |
           ## Continue Beans AI Assistant v${{ steps.version.outputs.version }}
-          
-          ### Features
-          - Complete function calling system with NetBeans APIs
-          - Plugin/module management integration
-          - Professional UI components
-          - MCP tools integration
-          - Enterprise-grade architecture
-          
-          ### Installation
-          Download the .nbm file and install via NetBeans Plugin Manager.
-          
-          ### Changelog
-          See [CHANGELOG.md](docs/CHANGELOG.md) for detailed changes.
+
+          Install the generated `.nbm` with NetBeans Plugin Manager.
         files: |
           target/*.nbm
           target/*.jar
@@ -112,23 +105,23 @@ jobs:
 
   code-quality:
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-    
+
     - name: Set up JDK 11
       uses: actions/setup-java@v4
       with:
         java-version: 11
         distribution: 'temurin'
         cache: maven
-    
+
     - name: Run static analysis
-      run: mvn clean verify
-    
+      run: mvn -B clean verify
+
     - name: Generate test report
       if: always()
       run: |
-        echo "## Test Results" >> $GITHUB_STEP_SUMMARY
-        echo "✅ Build completed" >> $GITHUB_STEP_SUMMARY
+        echo "## Test Results" >> "$GITHUB_STEP_SUMMARY"
+        echo "Build and verification completed." >> "$GITHUB_STEP_SUMMARY"
