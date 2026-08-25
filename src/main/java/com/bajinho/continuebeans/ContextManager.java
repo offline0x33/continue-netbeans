@@ -1,8 +1,11 @@
 package com.bajinho.continuebeans;
 
+import com.bajinho.continuebeans.netbeans.NetBeansLanguageService;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.openide.filesystems.FileObject;
@@ -17,38 +20,38 @@ public class ContextManager {
         StringBuilder promptWithContext = new StringBuilder(input);
 
         // Add automatic project context if no explicit commands are used
-        boolean hasExplicitContext = CODEBASE_PATTERN.matcher(input).find() || 
-                                   FILE_PATTERN.matcher(input).find();
-        
+        boolean hasExplicitContext = CODEBASE_PATTERN.matcher(input).find()
+                || FILE_PATTERN.matcher(input).find();
+
         if (!hasExplicitContext && currentWorkDir != null) {
             // Add basic project info automatically
             String projectName = new File(currentWorkDir).getName();
             promptWithContext.insert(0, "Contexto: Você está assistindo no projeto '" + projectName + "'. ");
-            
+
             // Add brief project structure (limited to avoid too much context)
             CodebaseIndexer indexer = new CodebaseIndexer(currentWorkDir);
             indexer.setMaxDepth(3); // Shallow for auto-context
             indexer.setMaxFiles(20); // Limited files
             String structure = indexer.scanDirectory(currentWorkDir);
-            
+
             if (structure != null && !structure.trim().isEmpty()) {
                 // Take first few lines of structure
-                String[] lines = structure.split("\n");
+                String[] lines = structure.split("\\n");
                 StringBuilder briefStructure = new StringBuilder();
                 for (int i = 0; i < Math.min(lines.length, 10); i++) {
-                    briefStructure.append(lines[i]).append("\n");
+                    briefStructure.append(lines[i]).append("\\n");
                 }
-                
-                promptWithContext.append("\n\nEstrutura resumida do projeto:\n```\n")
-                        .append(briefStructure.toString().trim()).append("\n```");
+
+                promptWithContext.append("\\n\\nEstrutura resumida do projeto:\\n```\\n")
+                        .append(briefStructure.toString().trim()).append("\\n```");
             }
         }
 
         // Process @codebase (full structure)
         if (CODEBASE_PATTERN.matcher(input).find()) {
             String structure = getProjectStructure(currentWorkDir);
-            promptWithContext.append("\n\nEstrutura completa do Projeto (@codebase):\n```\n")
-                    .append(structure).append("\n```");
+            promptWithContext.append("\\n\\nEstrutura completa do Projeto (@codebase):\\n```\\n")
+                    .append(structure).append("\\n```");
         }
 
         // Process @file:
@@ -58,10 +61,11 @@ public class ContextManager {
             String filePath = matcher.group(1);
             String content = readFileContent(filePath, currentWorkDir);
             if (content != null) {
-                promptWithContext.append("\n\nConteúdo do arquivo @file:").append(filePath).append(":\n```\n")
-                        .append(content).append("\n```");
+                promptWithContext.append("\\n\\nConteúdo do arquivo @file:").append(filePath).append(":\\n```\\n")
+                        .append(content).append("\\n```");
+                appendNativeJavaLanguageContext(promptWithContext, filePath, currentWorkDir);
             } else {
-                promptWithContext.append("\n\n[ERRO: Não foi possível carregar o arquivo: ").append(filePath)
+                promptWithContext.append("\\n\\n[ERRO: Não foi possível carregar o arquivo: ").append(filePath)
                         .append("]");
             }
         }
@@ -69,10 +73,55 @@ public class ContextManager {
         // Truncation Logic (Enterprise Rule)
         if (promptWithContext.length() > 4000) {
             String truncated = promptWithContext.substring(0, 4000);
-            return truncated + "\n... [Contexto Truncado]";
+            return truncated + "\\n... [Contexto Truncado]";
         }
 
         return promptWithContext.toString();
+    }
+
+    private static void appendNativeJavaLanguageContext(StringBuilder prompt, String path, String currentWorkDir) {
+        String resolvedPath = resolvePath(path, currentWorkDir);
+        if (!resolvedPath.endsWith(".java")) {
+            return;
+        }
+
+        try {
+            Map<String, Object> analysis = NetBeansLanguageService.analyzeJavaFile(resolvedPath);
+            Object symbolsObject = analysis.get("symbols");
+            if (!(symbolsObject instanceof List)) {
+                return;
+            }
+
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> symbols = (List<Map<String, Object>>) symbolsObject;
+            prompt.append("\\n\\nSemântica Java resolvida pelo Language Service do NetBeans:\\n```text\\n");
+            prompt.append("package=").append(analysis.get("package")).append('\\n');
+            for (Map<String, Object> symbol : symbols) {
+                prompt.append(symbol.get("kind"))
+                        .append(" ")
+                        .append(symbol.get("name"))
+                        .append(" @")
+                        .append(symbol.get("line"))
+                        .append(":")
+                        .append(symbol.get("column"));
+                Object qualifiedName = symbol.get("qualifiedName");
+                if (qualifiedName != null) {
+                    prompt.append(" [").append(qualifiedName).append("]");
+                }
+                prompt.append('\\n');
+            }
+            prompt.append("```");
+        } catch (IOException e) {
+            ContinueLogger.error("Failed to obtain native NetBeans language context for: " + resolvedPath, e);
+        }
+    }
+
+    private static String resolvePath(String path, String currentWorkDir) {
+        File file = new File(path);
+        if (!file.isAbsolute() && currentWorkDir != null) {
+            file = new File(currentWorkDir, path);
+        }
+        return file.getAbsolutePath();
     }
 
     private static String readFileContent(String path, String currentWorkDir) {
@@ -104,7 +153,7 @@ public class ContextManager {
         CodebaseIndexer indexer = new CodebaseIndexer(rootPath);
         indexer.setMaxDepth(5);
         indexer.setMaxFiles(50);
-        
+
         return indexer.scanDirectory(rootPath);
     }
 }
