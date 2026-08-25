@@ -77,7 +77,7 @@ public class ContextManager {
         int headChars = available / 2;
         int tailChars = available - headChars;
 
-        String marker = "\\n... [Contexto truncado para " + maxChars + " caracteres; "
+        String marker = "\\n... [Contexto Truncado para " + maxChars + " caracteres; "
                 + "início e fim preservados] ...\\n";
 
         return context.substring(0, headChars)
