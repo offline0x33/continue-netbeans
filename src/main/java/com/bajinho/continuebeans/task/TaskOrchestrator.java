@@ -1,7 +1,6 @@
 package com.bajinho.continuebeans.task;
 
 import com.bajinho.continuebeans.ai.AIToolCallingIntegration;
-import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -120,45 +119,24 @@ public final class TaskOrchestrator {
     }
 
     private String buildTaskPrompt(TaskPlan plan, AgentTask task) {
-        return """
-                Você está executando uma tarefa dentro de um plano maior.
-                NÃO declare o objetivo geral concluído.
-                Trabalhe somente na tarefa atual e use as ferramentas disponíveis.
-
-                OBJETIVO GERAL:
-                %s
-
-                TAREFA:
-                %s
-
-                INSTRUÇÃO:
-                %s
-
-                CRITÉRIO DE CONCLUSÃO:
-                %s
-
-                Execute as mudanças necessárias e informe exatamente o que foi feito.
-                """.formatted(plan.getGoal(), task.getTitle(), task.getInstruction(), task.getCompletionCriteria());
+        return "Você está executando uma tarefa dentro de um plano maior.\n"
+                + "NÃO declare o objetivo geral concluído.\n"
+                + "Trabalhe somente na tarefa atual e use as ferramentas disponíveis.\n\n"
+                + "OBJETIVO GERAL:\n" + plan.getGoal() + "\n\n"
+                + "TAREFA:\n" + task.getTitle() + "\n\n"
+                + "INSTRUÇÃO:\n" + task.getInstruction() + "\n\n"
+                + "CRITÉRIO DE CONCLUSÃO:\n" + task.getCompletionCriteria() + "\n\n"
+                + "Execute as mudanças necessárias e informe exatamente o que foi feito.";
     }
 
     private String buildVerificationPrompt(TaskPlan plan, AgentTask task, String executionResult) {
-        return """
-                Você é o verificador de uma tarefa de engenharia.
-                Inspecione o projeto com as ferramentas disponíveis quando necessário.
-                Responda obrigatoriamente começando por DONE ou NOT_DONE.
-
-                OBJETIVO:
-                %s
-
-                TAREFA:
-                %s
-
-                CRITÉRIO:
-                %s
-
-                RESULTADO INFORMADO PELO AGENTE:
-                %s
-                """.formatted(plan.getGoal(), task.getTitle(), task.getCompletionCriteria(), executionResult);
+        return "Você é o verificador de uma tarefa de engenharia.\n"
+                + "Inspecione o projeto com as ferramentas disponíveis quando necessário.\n"
+                + "Responda obrigatoriamente começando por DONE ou NOT_DONE.\n\n"
+                + "OBJETIVO:\n" + plan.getGoal() + "\n\n"
+                + "TAREFA:\n" + task.getTitle() + "\n\n"
+                + "CRITÉRIO:\n" + task.getCompletionCriteria() + "\n\n"
+                + "RESULTADO INFORMADO PELO AGENTE:\n" + executionResult;
     }
 
     private boolean isDoneVerdict(String verdict) {
