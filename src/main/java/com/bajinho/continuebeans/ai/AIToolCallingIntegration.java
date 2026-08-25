@@ -20,22 +20,13 @@ import java.util.concurrent.CompletableFuture;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-/**
- * Real OpenAI-compatible tool calling integration for NetBeans.
- *
- * <p>The provider is expected to expose /v1/chat/completions semantics, as
- * used by LM Studio, Ollama-compatible gateways, LocalAI and OpenAI-compatible
- * services. The agent loop is:</p>
- *
- * <pre>
- * user -> model + tools -> tool_calls -> policy -> executor -> tool results -> model -> final answer
- * </pre>
- */
+/** Real OpenAI-compatible tool calling integration backed by the task executor. */
 public class AIToolCallingIntegration {
 
     private static final Logger LOG = Logger.getLogger(AIToolCallingIntegration.class.getName());
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(120);
     private static final String API_KEY_ENV = "CONTINUE_BEANS_API_KEY";
+    private static final int MAX_TOOL_ROUNDS = 8;
 
     private final NetBeansFunctionDefinitions functionDefinitions;
     private final NetBeansFunctionExecutor functionExecutor;
@@ -61,61 +52,32 @@ public class AIToolCallingIntegration {
                 List<JsonObject> messages = new ArrayList<>();
                 messages.add(message("user", userMessage));
 
-                JsonObject firstResponse = callProvider(messages);
-                JsonObject choiceMessage = firstResponse
-                        .getAsJsonArray("choices")
-                        .get(0)
-                        .getAsJsonObject()
-                        .getAsJsonObject("message");
+                for (int round = 1; round <= MAX_TOOL_ROUNDS; round++) {
+                    JsonObject response = callProvider(messages);
+                    JsonObject choiceMessage = response.getAsJsonArray("choices")
+                            .get(0).getAsJsonObject().getAsJsonObject("message");
+                    JsonArray toolCalls = choiceMessage.has("tool_calls")
+                            ? choiceMessage.getAsJsonArray("tool_calls") : new JsonArray();
 
-                JsonArray toolCalls = choiceMessage.has("tool_calls")
-                        ? choiceMessage.getAsJsonArray("tool_calls")
-                        : new JsonArray();
-
-                if (toolCalls.isEmpty()) {
-                    return AIResponse.text(readContent(choiceMessage));
-                }
-
-                messages.add(choiceMessage);
-
-                for (JsonElement toolCallElement : toolCalls) {
-                    JsonObject toolCall = toolCallElement.getAsJsonObject();
-                    JsonObject function = toolCall.getAsJsonObject("function");
-                    String functionName = function.get("name").getAsString();
-                    String rawArguments = function.has("arguments")
-                            ? function.get("arguments").getAsString()
-                            : "{}";
-                    Map<String, Object> arguments = parseArguments(rawArguments);
-
-                    try {
-                        ToolExecutionPolicy.validate(functionName, arguments);
-                    } catch (SecurityException denied) {
-                        LOG.warning(() -> "AI tool blocked by policy: " + functionName + " - " + denied.getMessage());
-                        JsonObject deniedMessage = message("tool", "ERROR: " + denied.getMessage());
-                        deniedMessage.addProperty("tool_call_id", toolCall.get("id").getAsString());
-                        messages.add(deniedMessage);
-                        continue;
+                    if (toolCalls.isEmpty()) {
+                        return AIResponse.text(readContent(choiceMessage));
                     }
 
-                    LOG.info(() -> "Executing AI tool: " + functionName + " via " + aiProvider);
-                    NetBeansFunctionExecutor.FunctionResult result =
-                            functionExecutor.executeFunction(functionName, arguments).join();
-
-                    JsonObject toolMessage = message("tool", result.isSuccess()
-                            ? resultToJson(result)
-                            : "ERROR: " + result.getMessage());
-                    toolMessage.addProperty("tool_call_id", toolCall.get("id").getAsString());
-                    messages.add(toolMessage);
+                    messages.add(choiceMessage);
+                    for (JsonElement toolCallElement : toolCalls) {
+                        JsonObject toolCall = toolCallElement.getAsJsonObject();
+                        JsonObject function = toolCall.getAsJsonObject("function");
+                        String functionName = function.get("name").getAsString();
+                        String rawArguments = function.has("arguments")
+                                ? function.get("arguments").getAsString() : "{}";
+                        Map<String, Object> arguments = parseArguments(rawArguments);
+                        JsonObject toolMessage = executeTool(functionName, arguments, toolCall, aiProvider);
+                        messages.add(toolMessage);
+                    }
+                    LOG.fine(() -> "Completed tool round " + round + " for provider " + aiProvider);
                 }
 
-                JsonObject finalResponse = callProvider(messages);
-                JsonObject finalMessage = finalResponse
-                        .getAsJsonArray("choices")
-                        .get(0)
-                        .getAsJsonObject()
-                        .getAsJsonObject("message");
-
-                return AIResponse.text(readContent(finalMessage));
+                return AIResponse.error("Limite de " + MAX_TOOL_ROUNDS + " ciclos de tools atingido.");
             } catch (Exception e) {
                 LOG.log(Level.SEVERE, "Erro no ciclo de tool calling", e);
                 return AIResponse.error("Erro de integração AI: " + safeMessage(e));
@@ -123,10 +85,41 @@ public class AIToolCallingIntegration {
         });
     }
 
+    private JsonObject executeTool(String functionName, Map<String, Object> arguments,
+            JsonObject toolCall, String aiProvider) {
+        String toolCallId = toolCall.has("id") ? toolCall.get("id").getAsString() : "unknown";
+        try {
+            ToolExecutionPolicy.validate(functionName, arguments);
+            LOG.info(() -> "Executing AI tool: " + functionName + " via " + aiProvider);
+            NetBeansFunctionExecutor.FunctionResult result = executeFunctionInternal(functionName, arguments).join();
+            JsonObject toolMessage = message("tool", result.isSuccess()
+                    ? resultToJson(result) : "ERROR: " + result.getMessage());
+            toolMessage.addProperty("tool_call_id", toolCallId);
+            return toolMessage;
+        } catch (SecurityException denied) {
+            LOG.warning(() -> "AI tool blocked by policy: " + functionName + " - " + denied.getMessage());
+            JsonObject toolMessage = message("tool", "ERROR: " + denied.getMessage());
+            toolMessage.addProperty("tool_call_id", toolCallId);
+            return toolMessage;
+        }
+    }
+
+    private CompletableFuture<NetBeansFunctionExecutor.FunctionResult> executeFunctionInternal(
+            String functionName, Map<String, Object> arguments) {
+        switch (functionName) {
+            case "generate_class":
+            case "generate_interface":
+            case "generate_test_method":
+            case "add_dependency":
+                return CompletableFuture.completedFuture(RealCodeTools.execute(functionName, arguments));
+            default:
+                return functionExecutor.executeFunction(functionName, arguments);
+        }
+    }
+
     private JsonObject callProvider(List<JsonObject> messages) throws Exception {
         String endpoint = ContinueSettings.getApiUrl();
         String model = ContinueSettings.getModel();
-
         if (endpoint == null || endpoint.isBlank()) {
             throw new IllegalStateException("URL da API AI não configurada.");
         }
@@ -145,7 +138,6 @@ public class AIToolCallingIntegration {
                 .uri(URI.create(endpoint))
                 .timeout(REQUEST_TIMEOUT)
                 .header("Content-Type", "application/json");
-
         String apiKey = System.getenv(API_KEY_ENV);
         if (apiKey != null && !apiKey.isBlank()) {
             builder.header("Authorization", "Bearer " + apiKey);
@@ -154,7 +146,6 @@ public class AIToolCallingIntegration {
         HttpResponse<String> response = httpClient.send(
                 builder.POST(HttpRequest.BodyPublishers.ofString(gson.toJson(request))).build(),
                 HttpResponse.BodyHandlers.ofString());
-
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
             throw new IllegalStateException("AI API retornou HTTP " + response.statusCode()
                     + ": " + truncate(response.body(), 500));
@@ -172,7 +163,6 @@ public class AIToolCallingIntegration {
         for (NetBeansFunctionDefinitions.FunctionDefinition function : functionDefinitions.getAllFunctions()) {
             JsonObject tool = new JsonObject();
             tool.addProperty("type", "function");
-
             JsonObject definition = new JsonObject();
             definition.addProperty("name", function.getName());
             definition.addProperty("description", function.getDescription());
@@ -187,7 +177,6 @@ public class AIToolCallingIntegration {
         JsonObject schema = new JsonObject();
         schema.addProperty("type", "object");
         JsonObject properties = new JsonObject();
-
         for (Map.Entry<String, Object> entry : parameters.entrySet()) {
             JsonObject property = new JsonObject();
             String descriptor = String.valueOf(entry.getValue());
@@ -195,32 +184,21 @@ public class AIToolCallingIntegration {
             property.addProperty("description", descriptor);
             properties.add(entry.getKey(), property);
         }
-
         schema.add("properties", properties);
         return schema;
     }
 
     private String parameterType(String descriptor) {
         String normalized = descriptor == null ? "" : descriptor.toLowerCase();
-        if (normalized.startsWith("boolean")) {
-            return "boolean";
-        }
-        if (normalized.startsWith("integer")) {
-            return "integer";
-        }
-        if (normalized.startsWith("number")) {
-            return "number";
-        }
-        if (normalized.startsWith("array")) {
-            return "array";
-        }
+        if (normalized.startsWith("boolean")) return "boolean";
+        if (normalized.startsWith("integer")) return "integer";
+        if (normalized.startsWith("number")) return "number";
+        if (normalized.startsWith("array")) return "array";
         return "string";
     }
 
     private Map<String, Object> parseArguments(String rawArguments) {
-        if (rawArguments == null || rawArguments.isBlank()) {
-            return new HashMap<>();
-        }
+        if (rawArguments == null || rawArguments.isBlank()) return new HashMap<>();
         JsonElement element = JsonParser.parseString(rawArguments);
         if (!element.isJsonObject()) {
             throw new IllegalArgumentException("Argumentos da tool call não são um objeto JSON.");
@@ -251,8 +229,7 @@ public class AIToolCallingIntegration {
 
     private String readContent(JsonObject message) {
         return message.has("content") && !message.get("content").isJsonNull()
-                ? message.get("content").getAsString()
-                : "A operação foi concluída.";
+                ? message.get("content").getAsString() : "A operação foi concluída.";
     }
 
     private String safeMessage(Exception e) {
@@ -260,9 +237,7 @@ public class AIToolCallingIntegration {
     }
 
     private String truncate(String value, int maxLength) {
-        if (value == null || value.length() <= maxLength) {
-            return value;
-        }
+        if (value == null || value.length() <= maxLength) return value;
         return value.substring(0, maxLength) + "…";
     }
 
@@ -274,7 +249,7 @@ public class AIToolCallingIntegration {
             String functionName, Map<String, Object> arguments) {
         try {
             ToolExecutionPolicy.validate(functionName, arguments);
-            return functionExecutor.executeFunction(functionName, arguments);
+            return executeFunctionInternal(functionName, arguments);
         } catch (SecurityException denied) {
             return CompletableFuture.completedFuture(
                     NetBeansFunctionExecutor.FunctionResult.error(denied.getMessage()));
@@ -298,12 +273,7 @@ public class AIToolCallingIntegration {
             return new AIResponse("error", error);
         }
 
-        public String getType() {
-            return type;
-        }
-
-        public String getContent() {
-            return content;
-        }
+        public String getType() { return type; }
+        public String getContent() { return content; }
     }
 }
