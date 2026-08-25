@@ -74,7 +74,8 @@ public class AIToolCallingIntegration {
                         JsonObject toolMessage = executeTool(functionName, arguments, toolCall, aiProvider);
                         messages.add(toolMessage);
                     }
-                    LOG.fine(() -> "Completed tool round " + round + " for provider " + aiProvider);
+                    final int currentRound = round;
+                    LOG.fine(() -> "Completed tool round " + currentRound + " for provider " + aiProvider);
                 }
 
                 return AIResponse.error("Limite de " + MAX_TOOL_ROUNDS + " ciclos de tools atingido.");
@@ -91,9 +92,9 @@ public class AIToolCallingIntegration {
         try {
             ToolExecutionPolicy.validate(functionName, arguments);
             LOG.info(() -> "Executing AI tool: " + functionName + " via " + aiProvider);
-            NetBeansFunctionExecutor.FunctionResult result = executeFunctionInternal(functionName, arguments).join();
-            JsonObject toolMessage = message("tool", result.isSuccess()
-                    ? resultToJson(result) : "ERROR: " + result.getMessage());
+            NetBeansFunctionExecutor.FunctionResult result = functionExecutor
+                    .executeFunction(functionName, arguments).join();
+            JsonObject toolMessage = message("tool", resultToJson(result));
             toolMessage.addProperty("tool_call_id", toolCallId);
             return toolMessage;
         } catch (SecurityException denied) {
@@ -101,19 +102,11 @@ public class AIToolCallingIntegration {
             JsonObject toolMessage = message("tool", "ERROR: " + denied.getMessage());
             toolMessage.addProperty("tool_call_id", toolCallId);
             return toolMessage;
-        }
-    }
-
-    private CompletableFuture<NetBeansFunctionExecutor.FunctionResult> executeFunctionInternal(
-            String functionName, Map<String, Object> arguments) {
-        switch (functionName) {
-            case "generate_class":
-            case "generate_interface":
-            case "generate_test_method":
-            case "add_dependency":
-                return CompletableFuture.completedFuture(RealCodeTools.execute(functionName, arguments));
-            default:
-                return functionExecutor.executeFunction(functionName, arguments);
+        } catch (Exception e) {
+            LOG.log(Level.WARNING, "AI tool execution failed: " + functionName, e);
+            JsonObject toolMessage = message("tool", "ERROR: " + safeMessage(e));
+            toolMessage.addProperty("tool_call_id", toolCallId);
+            return toolMessage;
         }
     }
 
@@ -211,11 +204,8 @@ public class AIToolCallingIntegration {
     private JsonObject message(String role, Object content) {
         JsonObject message = new JsonObject();
         message.addProperty("role", role);
-        if (content instanceof JsonObject) {
-            message.add("content", (JsonObject) content);
-        } else {
-            message.addProperty("content", String.valueOf(content));
-        }
+        if (content instanceof JsonObject) message.add("content", (JsonObject) content);
+        else message.addProperty("content", String.valueOf(content));
         return message;
     }
 
@@ -249,7 +239,7 @@ public class AIToolCallingIntegration {
             String functionName, Map<String, Object> arguments) {
         try {
             ToolExecutionPolicy.validate(functionName, arguments);
-            return executeFunctionInternal(functionName, arguments);
+            return functionExecutor.executeFunction(functionName, arguments);
         } catch (SecurityException denied) {
             return CompletableFuture.completedFuture(
                     NetBeansFunctionExecutor.FunctionResult.error(denied.getMessage()));
