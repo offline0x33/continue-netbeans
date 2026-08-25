@@ -125,7 +125,7 @@ O AI model configurado com Continue Beans tem acesso completo a:
 
 ## 🛠 **Function Calling System**
 
-### � **Como Funciona**
+### 🎯 **Como Funciona**
 O AI pode executar diretamente funções NetBeans:
 
 ```
@@ -134,27 +134,54 @@ AI: "**EXECUTE:** create_file(filePath=hello_world.py, content=print("Hello, Wor
 Sistema: ✅ Arquivo criado com sucesso!
 ```
 
-### � **Funções Disponíveis**
+### 🔧 **Funções Disponíveis**
+
+**Operações de Arquivo:**
 - `create_file(filePath, content)` - Criar arquivos
 - `read_file(filePath)` - Ler conteúdo de arquivos
 - `modify_file(filePath, content)` - Modificar arquivos
 - `delete_file(filePath)` - Deletar arquivos
 - `list_files(directory)` - Listar arquivos em diretório
+
+**Gerenciamento de Projetos:**
 - `create_project(name, type)` - Criar projetos NetBeans
 - `build_project()` - Buildar projetos
+- `get_project_info()` - Obter informações do projeto
+
+**Gerenciamento de Janelas/Editor:**
 - `open_editor(file)` - Abrir arquivos no editor
+- `close_editor(file)` - Fechar arquivos no editor
+- `save_editor(file)` - Salvar arquivos no editor
+- `get_active_windows()` - Listar janelas abertas
+
+**Geração de Código:**
+- `generate_class(className, packageName)` - Gerar classes Java
+- `generate_interface(interfaceName, packageName)` - Gerar interfaces
+- `generate_test(className)` - Gerar testes unitários
+
+**Análise e Refatoração:**
+- `analyze_code(file)` - Analisar código fonte
+- `refactor_code(file, type)` - Refatorar código
+
+**Gerenciamento de Plugins/Módulos:**
+- `list_modules(enabledOnly)` - Listar módulos NetBeans instalados
+- `get_module_info(moduleCodeName)` - Obter informações detalhadas de módulo
+- `get_module_services(moduleCodeName)` - Listar serviços fornecidos por módulo
+- `enable_module(moduleCodeName)` - Habilitar módulo desativado
+- `disable_module(moduleCodeName)` - Desabilitar módulo
 
 ---
 
 ## 🏗️ **Arquitetura Enterprise**
 
 ### 📊 **Estatísticas do Projeto**
-- **59 classes principais** poderosas
+- **65 classes principais** poderosas
 - **338 testes unitários** passando
 - **100% Java 11 compatible**
 - **Full async operations**
 - **Production-ready architecture**
 - **Function calling completo**
+- **Complete System Integration** com componentes reais
 
 ### 🎯 **Componentes Principais**
 1. **AI Integration** - LM Studio, Ollama, OpenAI
@@ -296,13 +323,27 @@ Este projeto está licenciado sob a Licença MIT - veja o arquivo [LICENSE](LICE
 
 **✅ PROJETO COMPLETO - PRODUCTION-READY**
 
-- ✅ **59 classes** enterprise-grade
+- ✅ **65 classes** enterprise-grade
 - ✅ **338 testes** passando
 - ✅ **Function Calling** completo e funcional
 - ✅ **Multi-provider AI** integration
 - ✅ **NetBeans Platform** integration profunda
 - ✅ **Configuration Panel** intuitivo
 - ✅ **Enterprise-grade** architecture production-ready
+- ✅ **Complete System Integration** com componentes reais
+- ✅ **NetBeansWindowManager** - Gerenciamento de janelas
+- ✅ **NetBeansFileSystem** - Operações de arquivo
+- ✅ **ProjectAnalyzer** - Análise de projetos
+- ✅ **FileWatcher** - Monitoramento de arquivos
+- ✅ **TemplateEngine** - Motor de templates
+- ✅ **WorkflowEngine** - Motor de workflows
+- ✅ **FileOperationManager** - Gerenciamento de operações
+- ✅ **IntelligentCodeEditor** - Editor inteligente
+- ✅ **SmartSuggestionEngine** - Motor de sugestões
+- ✅ **ContextAwareAssistant** - Assistente com contexto
+- ✅ **NetBeansIntegrationManager** - Integração NetBeans
+- ✅ **AdvancedAIIntegration** - Integração AI avançada
+- ✅ **MultiProviderRouter** - Roteamento multi-provider
 
 **🚀 Continue Beans é a plataforma mais completa de IA para NetBeans!**
 

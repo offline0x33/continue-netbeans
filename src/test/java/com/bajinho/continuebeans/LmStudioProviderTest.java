@@ -29,6 +29,9 @@ public class LmStudioProviderTest {
         when(mockClient.sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
                 .thenReturn(CompletableFuture.completedFuture(mockResponse));
 
+        // Set a valid API URL before creating the provider
+        ContinueSettings.setApiUrl("http://localhost:1234/v1/chat/completions");
+        
         LmStudioProvider provider = new LmStudioProvider(mockClient, new Gson());
         List<String> models = provider.listModels().join();
         // Should contain both models (loaded instances and available models)

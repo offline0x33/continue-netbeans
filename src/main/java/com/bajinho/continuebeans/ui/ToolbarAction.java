@@ -20,54 +20,66 @@ package com.bajinho.continuebeans.ui;
 
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import javax.swing.JMenuItem;
+import javax.swing.JButton;
+import javax.swing.ImageIcon;
 import org.openide.awt.ActionID;
 import org.openide.awt.ActionReference;
 import org.openide.awt.ActionRegistration;
 import org.openide.util.NbBundle;
+import org.openide.util.Utilities;
 
 /**
- * Menu integration for Continue Beans AI Assistant.
- * Provides access to the AI assistant through the NetBeans Tools menu.
+ * Toolbar action for Continue Beans AI Assistant.
+ * Provides quick access to the AI assistant through the NetBeans toolbar.
  * 
- * <p>This class follows Apache NetBeans menu integration patterns and
- * implements proper localization and action registration.</p>
+ * <p>This class follows Apache NetBeans toolbar integration patterns,
+ * implementing proper icon handling, localization, and action registration.</p>
  * 
+ * @see MenuIntegration
  * @see ProfessionalTopComponent
- * @see ToolbarAction
  */
 @ActionID(
-    category = "Tools",
-    id = "com.bajinho.continuebeans.ui.MenuIntegration"
+    category = "Build",
+    id = "com.bajinho.continuebeans.ui.ToolbarAction"
 )
 @ActionRegistration(
-    displayName = "#CTL_Menu_Access"
+    displayName = "#CTL_Toolbar_Access"
 )
 @ActionReference(
-    path = "Menu/Tools",
-    position = 1500,
-    separatorAfter = 1501
+    path = "Toolbars/Build",
+    position = 200
 )
 @NbBundle.Messages({
-    "CTL_Menu_Access=Continue Beans AI Assistant",
-    "CTL_Menu_Description=Open AI-powered development assistant"
+    "CTL_Toolbar_Access=Continue Beans AI",
+    "CTL_Toolbar_Description=Open AI-powered development assistant"
 })
-public final class MenuIntegration implements ActionListener {
+public final class ToolbarAction implements ActionListener {
     
     /**
-     * Creates a new instance of the menu integration action.
+     * Creates a new instance of the toolbar action.
      * 
-     * @return a JMenuItem configured for the Continue Beans menu entry
+     * @return a JButton configured for the Continue Beans toolbar entry
      */
-    public static JMenuItem create() {
-        JMenuItem menuItem = new JMenuItem(Bundle.CTL_Menu_Access());
-        menuItem.setToolTipText(Bundle.CTL_Menu_Description());
-        menuItem.addActionListener(new MenuIntegration());
-        return menuItem;
+    public static JButton create() {
+        ImageIcon icon = null;
+        try {
+            icon = new ImageIcon(
+                Utilities.loadImage("com/bajinho/continuebeans/ui/continue_beans_logo.png", true)
+            );
+        } catch (Exception e) {
+            // Fallback if icon cannot be loaded
+            icon = new ImageIcon();
+        }
+        
+        JButton button = new JButton(icon);
+        button.setToolTipText(Bundle.CTL_Toolbar_Description());
+        button.setFocusable(false);
+        button.addActionListener(new ToolbarAction());
+        return button;
     }
     
     /**
-     * Handles the menu action event.
+     * Handles the toolbar action event.
      * Opens the Continue Beans AI Assistant window.
      * 
      * @param e the action event

@@ -56,7 +56,14 @@ public class NetBeansFunctionDefinitions {
             createAddDependencyFunction(),
             createUpdatePropertiesFunction(),
             createGetProjectConfigFunction(),
-            createSetProjectConfigFunction()
+            createSetProjectConfigFunction(),
+            
+            // Plugin/Module Management
+            createListModulesFunction(),
+            createGetModuleInfoFunction(),
+            createGetModuleServicesFunction(),
+            createEnableModuleFunction(),
+            createDisableModuleFunction()
         );
     }
     
@@ -447,6 +454,74 @@ public class NetBeansFunctionDefinitions {
             "Update project configuration file",
             parameters,
             "Returns configuration update status and file info"
+        );
+    }
+    
+    /**
+     * Plugin/Module Management Functions
+     */
+    private static FunctionDefinition createListModulesFunction() {
+        Map<String, Object> parameters = new HashMap<>();
+        parameters.put("enabledOnly", "boolean - Show only enabled modules (optional, default: false)");
+        parameters.put("category", "string - Filter by category (optional)");
+        
+        return new FunctionDefinition(
+            "list_modules",
+            "List all installed NetBeans modules/plugins",
+            parameters,
+            "Returns list of modules with their status, version, and description"
+        );
+    }
+    
+    private static FunctionDefinition createGetModuleInfoFunction() {
+        Map<String, Object> parameters = new HashMap<>();
+        parameters.put("moduleCodeName", "string - Code name of the module (e.g., org.netbeans.modules.java)");
+        parameters.put("moduleId", "string - Module ID (optional, alternative to codeName)");
+        
+        return new FunctionDefinition(
+            "get_module_info",
+            "Get detailed information about a specific NetBeans module",
+            parameters,
+            "Returns module metadata, dependencies, and provided services"
+        );
+    }
+    
+    private static FunctionDefinition createGetModuleServicesFunction() {
+        Map<String, Object> parameters = new HashMap<>();
+        parameters.put("moduleCodeName", "string - Code name of the module");
+        parameters.put("serviceType", "string - Filter by service type (optional)");
+        
+        return new FunctionDefinition(
+            "get_module_services",
+            "Get services provided by a NetBeans module via Lookup",
+            parameters,
+            "Returns list of available services and their interfaces"
+        );
+    }
+    
+    private static FunctionDefinition createEnableModuleFunction() {
+        Map<String, Object> parameters = new HashMap<>();
+        parameters.put("moduleCodeName", "string - Code name of the module to enable");
+        parameters.put("restartRequired", "boolean - Whether restart is required (optional)");
+        
+        return new FunctionDefinition(
+            "enable_module",
+            "Enable a disabled NetBeans module",
+            parameters,
+            "Returns enable status and whether restart is needed"
+        );
+    }
+    
+    private static FunctionDefinition createDisableModuleFunction() {
+        Map<String, Object> parameters = new HashMap<>();
+        parameters.put("moduleCodeName", "string - Code name of the module to disable");
+        parameters.put("restartRequired", "boolean - Whether restart is required (optional)");
+        
+        return new FunctionDefinition(
+            "disable_module",
+            "Disable a NetBeans module",
+            parameters,
+            "Returns disable status and whether restart is needed"
         );
     }
     

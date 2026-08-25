@@ -20,17 +20,11 @@ class ChatPanelTest {
     private ChatPanel chatPanel;
 
     @BeforeEach
-    void setUp() {
+    void setUp() throws Exception {
         // Run on EDT to avoid Swing threading issues
-        SwingUtilities.invokeLater(() -> {
+        SwingUtilities.invokeAndWait(() -> {
             chatPanel = new ChatPanel();
         });
-        // Wait for initialization
-        try {
-            Thread.sleep(100);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
     }
 
     @Test

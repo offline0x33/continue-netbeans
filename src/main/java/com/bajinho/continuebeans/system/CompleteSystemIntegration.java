@@ -971,6 +971,9 @@ public class CompleteSystemIntegration {
     // For brevity, I'll just add placeholder classes
     
     private static class NetBeansWindowManagerComponent implements SystemComponent {
+        private NetBeansWindowManager windowManager;
+        private ComponentStatus status = ComponentStatus.UNINITIALIZED;
+        
         @Override
         public String getComponentId() { return "NetBeansWindowManager"; }
         @Override
@@ -978,147 +981,661 @@ public class CompleteSystemIntegration {
         @Override
         public String getVersion() { return "1.0.0"; }
         @Override
-        public ComponentStatus getStatus() { return ComponentStatus.RUNNING; }
+        public ComponentStatus getStatus() { return status; }
+        
         @Override
-        public CompletableFuture<Boolean> initialize() { return CompletableFuture.completedFuture(true); }
+        public CompletableFuture<Boolean> initialize() {
+            return CompletableFuture.supplyAsync(() -> {
+                try {
+                    windowManager = NetBeansWindowManager.getInstance();
+                    status = ComponentStatus.RUNNING;
+                    LOG.info("NetBeansWindowManager initialized");
+                    return true;
+                } catch (Exception e) {
+                    LOG.log(Level.SEVERE, "Failed to initialize NetBeansWindowManager", e);
+                    status = ComponentStatus.ERROR;
+                    return false;
+                }
+            });
+        }
+        
         @Override
-        public CompletableFuture<Boolean> shutdown() { return CompletableFuture.completedFuture(true); }
+        public CompletableFuture<Boolean> shutdown() {
+            return CompletableFuture.supplyAsync(() -> {
+                try {
+                    windowManager = null;
+                    status = ComponentStatus.STOPPED;
+                    LOG.info("NetBeansWindowManager shutdown");
+                    return true;
+                } catch (Exception e) {
+                    LOG.log(Level.SEVERE, "Failed to shutdown NetBeansWindowManager", e);
+                    return false;
+                }
+            });
+        }
+        
         @Override
-        public Map<String, Object> getComponentInfo() { return new HashMap<>(); }
+        public Map<String, Object> getComponentInfo() {
+            Map<String, Object> info = new HashMap<>();
+            info.put("instance", windowManager != null);
+            info.put("availableModes", windowManager != null ? windowManager.getAvailableModes() : new String[0]);
+            return info;
+        }
+        
         @Override
-        public boolean isHealthy() { return true; }
+        public boolean isHealthy() { return status == ComponentStatus.RUNNING && windowManager != null; }
     }
     
-    // Similar placeholder classes for other components...
     private static class NetBeansFileSystemComponent implements SystemComponent {
+        private NetBeansFileSystem fileSystem;
+        private ComponentStatus status = ComponentStatus.UNINITIALIZED;
+        
         @Override public String getComponentId() { return "NetBeansFileSystem"; }
         @Override public String getComponentName() { return "NetBeans File System"; }
         @Override public String getVersion() { return "1.0.0"; }
-        @Override public ComponentStatus getStatus() { return ComponentStatus.RUNNING; }
-        @Override public CompletableFuture<Boolean> initialize() { return CompletableFuture.completedFuture(true); }
-        @Override public CompletableFuture<Boolean> shutdown() { return CompletableFuture.completedFuture(true); }
-        @Override public Map<String, Object> getComponentInfo() { return new HashMap<>(); }
-        @Override public boolean isHealthy() { return true; }
+        @Override public ComponentStatus getStatus() { return status; }
+        
+        @Override
+        public CompletableFuture<Boolean> initialize() {
+            return CompletableFuture.supplyAsync(() -> {
+                try {
+                    fileSystem = NetBeansFileSystem.getInstance();
+                    status = ComponentStatus.RUNNING;
+                    LOG.info("NetBeansFileSystem initialized");
+                    return true;
+                } catch (Exception e) {
+                    LOG.log(Level.SEVERE, "Failed to initialize NetBeansFileSystem", e);
+                    status = ComponentStatus.ERROR;
+                    return false;
+                }
+            });
+        }
+        
+        @Override
+        public CompletableFuture<Boolean> shutdown() {
+            return CompletableFuture.supplyAsync(() -> {
+                try {
+                    fileSystem = null;
+                    status = ComponentStatus.STOPPED;
+                    LOG.info("NetBeansFileSystem shutdown");
+                    return true;
+                } catch (Exception e) {
+                    LOG.log(Level.SEVERE, "Failed to shutdown NetBeansFileSystem", e);
+                    return false;
+                }
+            });
+        }
+        
+        @Override
+        public Map<String, Object> getComponentInfo() {
+            Map<String, Object> info = new HashMap<>();
+            info.put("instance", fileSystem != null);
+            info.put("activeWatchers", fileSystem != null ? fileSystem.getActiveWatchers().size() : 0);
+            info.put("pendingOperations", fileSystem != null ? fileSystem.getPendingOperations().size() : 0);
+            return info;
+        }
+        
+        @Override public boolean isHealthy() { return status == ComponentStatus.RUNNING && fileSystem != null; }
     }
     
     private static class ProjectAnalyzerComponent implements SystemComponent {
+        private ProjectAnalyzer projectAnalyzer;
+        private ComponentStatus status = ComponentStatus.UNINITIALIZED;
+        
         @Override public String getComponentId() { return "ProjectAnalyzer"; }
         @Override public String getComponentName() { return "Project Analyzer"; }
         @Override public String getVersion() { return "1.0.0"; }
-        @Override public ComponentStatus getStatus() { return ComponentStatus.RUNNING; }
-        @Override public CompletableFuture<Boolean> initialize() { return CompletableFuture.completedFuture(true); }
-        @Override public CompletableFuture<Boolean> shutdown() { return CompletableFuture.completedFuture(true); }
-        @Override public Map<String, Object> getComponentInfo() { return new HashMap<>(); }
-        @Override public boolean isHealthy() { return true; }
+        @Override public ComponentStatus getStatus() { return status; }
+        
+        @Override
+        public CompletableFuture<Boolean> initialize() {
+            return CompletableFuture.supplyAsync(() -> {
+                try {
+                    projectAnalyzer = ProjectAnalyzer.getInstance();
+                    status = ComponentStatus.RUNNING;
+                    LOG.info("ProjectAnalyzer initialized");
+                    return true;
+                } catch (Exception e) {
+                    LOG.log(Level.SEVERE, "Failed to initialize ProjectAnalyzer", e);
+                    status = ComponentStatus.ERROR;
+                    return false;
+                }
+            });
+        }
+        
+        @Override
+        public CompletableFuture<Boolean> shutdown() {
+            return CompletableFuture.supplyAsync(() -> {
+                try {
+                    projectAnalyzer = null;
+                    status = ComponentStatus.STOPPED;
+                    LOG.info("ProjectAnalyzer shutdown");
+                    return true;
+                } catch (Exception e) {
+                    LOG.log(Level.SEVERE, "Failed to shutdown ProjectAnalyzer", e);
+                    return false;
+                }
+            });
+        }
+        
+        @Override
+        public Map<String, Object> getComponentInfo() {
+            Map<String, Object> info = new HashMap<>();
+            info.put("instance", projectAnalyzer != null);
+            info.put("analysisCacheSize", projectAnalyzer != null ? 0 : 0);
+            return info;
+        }
+        
+        @Override public boolean isHealthy() { return status == ComponentStatus.RUNNING && projectAnalyzer != null; }
     }
     
     private static class FileWatcherComponent implements SystemComponent {
+        private FileWatcher fileWatcher;
+        private ComponentStatus status = ComponentStatus.UNINITIALIZED;
+        
         @Override public String getComponentId() { return "FileWatcher"; }
         @Override public String getComponentName() { return "File Watcher"; }
         @Override public String getVersion() { return "1.0.0"; }
-        @Override public ComponentStatus getStatus() { return ComponentStatus.RUNNING; }
-        @Override public CompletableFuture<Boolean> initialize() { return CompletableFuture.completedFuture(true); }
-        @Override public CompletableFuture<Boolean> shutdown() { return CompletableFuture.completedFuture(true); }
-        @Override public Map<String, Object> getComponentInfo() { return new HashMap<>(); }
-        @Override public boolean isHealthy() { return true; }
+        @Override public ComponentStatus getStatus() { return status; }
+        
+        @Override
+        public CompletableFuture<Boolean> initialize() {
+            return CompletableFuture.supplyAsync(() -> {
+                try {
+                    fileWatcher = FileWatcher.getInstance();
+                    status = ComponentStatus.RUNNING;
+                    LOG.info("FileWatcher initialized");
+                    return true;
+                } catch (Exception e) {
+                    LOG.log(Level.SEVERE, "Failed to initialize FileWatcher", e);
+                    status = ComponentStatus.ERROR;
+                    return false;
+                }
+            });
+        }
+        
+        @Override
+        public CompletableFuture<Boolean> shutdown() {
+            return CompletableFuture.supplyAsync(() -> {
+                try {
+                    if (fileWatcher != null) {
+                        fileWatcher.shutdown();
+                    }
+                    fileWatcher = null;
+                    status = ComponentStatus.STOPPED;
+                    LOG.info("FileWatcher shutdown");
+                    return true;
+                } catch (Exception e) {
+                    LOG.log(Level.SEVERE, "Failed to shutdown FileWatcher", e);
+                    return false;
+                }
+            });
+        }
+        
+        @Override
+        public Map<String, Object> getComponentInfo() {
+            Map<String, Object> info = new HashMap<>();
+            info.put("instance", fileWatcher != null);
+            info.put("activeSessions", fileWatcher != null ? fileWatcher.getActiveSessions().size() : 0);
+            return info;
+        }
+        
+        @Override public boolean isHealthy() { return status == ComponentStatus.RUNNING && fileWatcher != null; }
     }
     
     private static class TemplateEngineComponent implements SystemComponent {
+        private TemplateEngine templateEngine;
+        private ComponentStatus status = ComponentStatus.UNINITIALIZED;
+        
         @Override public String getComponentId() { return "TemplateEngine"; }
         @Override public String getComponentName() { return "Template Engine"; }
         @Override public String getVersion() { return "1.0.0"; }
-        @Override public ComponentStatus getStatus() { return ComponentStatus.RUNNING; }
-        @Override public CompletableFuture<Boolean> initialize() { return CompletableFuture.completedFuture(true); }
-        @Override public CompletableFuture<Boolean> shutdown() { return CompletableFuture.completedFuture(true); }
-        @Override public Map<String, Object> getComponentInfo() { return new HashMap<>(); }
-        @Override public boolean isHealthy() { return true; }
+        @Override public ComponentStatus getStatus() { return status; }
+        
+        @Override
+        public CompletableFuture<Boolean> initialize() {
+            return CompletableFuture.supplyAsync(() -> {
+                try {
+                    templateEngine = TemplateEngine.getInstance();
+                    status = ComponentStatus.RUNNING;
+                    LOG.info("TemplateEngine initialized");
+                    return true;
+                } catch (Exception e) {
+                    LOG.log(Level.SEVERE, "Failed to initialize TemplateEngine", e);
+                    status = ComponentStatus.ERROR;
+                    return false;
+                }
+            });
+        }
+        
+        @Override
+        public CompletableFuture<Boolean> shutdown() {
+            return CompletableFuture.supplyAsync(() -> {
+                try {
+                    templateEngine = null;
+                    status = ComponentStatus.STOPPED;
+                    LOG.info("TemplateEngine shutdown");
+                    return true;
+                } catch (Exception e) {
+                    LOG.log(Level.SEVERE, "Failed to shutdown TemplateEngine", e);
+                    return false;
+                }
+            });
+        }
+        
+        @Override
+        public Map<String, Object> getComponentInfo() {
+            Map<String, Object> info = new HashMap<>();
+            info.put("instance", templateEngine != null);
+            return info;
+        }
+        
+        @Override public boolean isHealthy() { return status == ComponentStatus.RUNNING && templateEngine != null; }
     }
     
     private static class WorkflowEngineComponent implements SystemComponent {
+        private WorkflowEngine workflowEngine;
+        private ComponentStatus status = ComponentStatus.UNINITIALIZED;
+        
         @Override public String getComponentId() { return "WorkflowEngine"; }
         @Override public String getComponentName() { return "Workflow Engine"; }
         @Override public String getVersion() { return "1.0.0"; }
-        @Override public ComponentStatus getStatus() { return ComponentStatus.RUNNING; }
-        @Override public CompletableFuture<Boolean> initialize() { return CompletableFuture.completedFuture(true); }
-        @Override public CompletableFuture<Boolean> shutdown() { return CompletableFuture.completedFuture(true); }
-        @Override public Map<String, Object> getComponentInfo() { return new HashMap<>(); }
-        @Override public boolean isHealthy() { return true; }
+        @Override public ComponentStatus getStatus() { return status; }
+        
+        @Override
+        public CompletableFuture<Boolean> initialize() {
+            return CompletableFuture.supplyAsync(() -> {
+                try {
+                    workflowEngine = WorkflowEngine.getInstance();
+                    status = ComponentStatus.RUNNING;
+                    LOG.info("WorkflowEngine initialized");
+                    return true;
+                } catch (Exception e) {
+                    LOG.log(Level.SEVERE, "Failed to initialize WorkflowEngine", e);
+                    status = ComponentStatus.ERROR;
+                    return false;
+                }
+            });
+        }
+        
+        @Override
+        public CompletableFuture<Boolean> shutdown() {
+            return CompletableFuture.supplyAsync(() -> {
+                try {
+                    if (workflowEngine != null) {
+                        workflowEngine.shutdown();
+                    }
+                    workflowEngine = null;
+                    status = ComponentStatus.STOPPED;
+                    LOG.info("WorkflowEngine shutdown");
+                    return true;
+                } catch (Exception e) {
+                    LOG.log(Level.SEVERE, "Failed to shutdown WorkflowEngine", e);
+                    return false;
+                }
+            });
+        }
+        
+        @Override
+        public Map<String, Object> getComponentInfo() {
+            Map<String, Object> info = new HashMap<>();
+            info.put("instance", workflowEngine != null);
+            return info;
+        }
+        
+        @Override public boolean isHealthy() { return status == ComponentStatus.RUNNING && workflowEngine != null; }
     }
     
     private static class FileOperationManagerComponent implements SystemComponent {
+        private FileOperationManager fileOperationManager;
+        private ComponentStatus status = ComponentStatus.UNINITIALIZED;
+        
         @Override public String getComponentId() { return "FileOperationManager"; }
         @Override public String getComponentName() { return "File Operation Manager"; }
         @Override public String getVersion() { return "1.0.0"; }
-        @Override public ComponentStatus getStatus() { return ComponentStatus.RUNNING; }
-        @Override public CompletableFuture<Boolean> initialize() { return CompletableFuture.completedFuture(true); }
-        @Override public CompletableFuture<Boolean> shutdown() { return CompletableFuture.completedFuture(true); }
-        @Override public Map<String, Object> getComponentInfo() { return new HashMap<>(); }
-        @Override public boolean isHealthy() { return true; }
+        @Override public ComponentStatus getStatus() { return status; }
+        
+        @Override
+        public CompletableFuture<Boolean> initialize() {
+            return CompletableFuture.supplyAsync(() -> {
+                try {
+                    fileOperationManager = FileOperationManager.getInstance();
+                    status = ComponentStatus.RUNNING;
+                    LOG.info("FileOperationManager initialized");
+                    return true;
+                } catch (Exception e) {
+                    LOG.log(Level.SEVERE, "Failed to initialize FileOperationManager", e);
+                    status = ComponentStatus.ERROR;
+                    return false;
+                }
+            });
+        }
+        
+        @Override
+        public CompletableFuture<Boolean> shutdown() {
+            return CompletableFuture.supplyAsync(() -> {
+                try {
+                    if (fileOperationManager != null) {
+                        fileOperationManager.shutdown();
+                    }
+                    fileOperationManager = null;
+                    status = ComponentStatus.STOPPED;
+                    LOG.info("FileOperationManager shutdown");
+                    return true;
+                } catch (Exception e) {
+                    LOG.log(Level.SEVERE, "Failed to shutdown FileOperationManager", e);
+                    return false;
+                }
+            });
+        }
+        
+        @Override
+        public Map<String, Object> getComponentInfo() {
+            Map<String, Object> info = new HashMap<>();
+            info.put("instance", fileOperationManager != null);
+            return info;
+        }
+        
+        @Override public boolean isHealthy() { return status == ComponentStatus.RUNNING && fileOperationManager != null; }
     }
     
     private static class IntelligentCodeEditorComponent implements SystemComponent {
+        private IntelligentCodeEditor intelligentCodeEditor;
+        private ComponentStatus status = ComponentStatus.UNINITIALIZED;
+        
         @Override public String getComponentId() { return "IntelligentCodeEditor"; }
         @Override public String getComponentName() { return "Intelligent Code Editor"; }
         @Override public String getVersion() { return "1.0.0"; }
-        @Override public ComponentStatus getStatus() { return ComponentStatus.RUNNING; }
-        @Override public CompletableFuture<Boolean> initialize() { return CompletableFuture.completedFuture(true); }
-        @Override public CompletableFuture<Boolean> shutdown() { return CompletableFuture.completedFuture(true); }
-        @Override public Map<String, Object> getComponentInfo() { return new HashMap<>(); }
-        @Override public boolean isHealthy() { return true; }
+        @Override public ComponentStatus getStatus() { return status; }
+        
+        @Override
+        public CompletableFuture<Boolean> initialize() {
+            return CompletableFuture.supplyAsync(() -> {
+                try {
+                    intelligentCodeEditor = IntelligentCodeEditor.getInstance();
+                    status = ComponentStatus.RUNNING;
+                    LOG.info("IntelligentCodeEditor initialized");
+                    return true;
+                } catch (Exception e) {
+                    LOG.log(Level.SEVERE, "Failed to initialize IntelligentCodeEditor", e);
+                    status = ComponentStatus.ERROR;
+                    return false;
+                }
+            });
+        }
+        
+        @Override
+        public CompletableFuture<Boolean> shutdown() {
+            return CompletableFuture.supplyAsync(() -> {
+                try {
+                    intelligentCodeEditor = null;
+                    status = ComponentStatus.STOPPED;
+                    LOG.info("IntelligentCodeEditor shutdown");
+                    return true;
+                } catch (Exception e) {
+                    LOG.log(Level.SEVERE, "Failed to shutdown IntelligentCodeEditor", e);
+                    return false;
+                }
+            });
+        }
+        
+        @Override
+        public Map<String, Object> getComponentInfo() {
+            Map<String, Object> info = new HashMap<>();
+            info.put("instance", intelligentCodeEditor != null);
+            return info;
+        }
+        
+        @Override public boolean isHealthy() { return status == ComponentStatus.RUNNING && intelligentCodeEditor != null; }
     }
     
     private static class SmartSuggestionEngineComponent implements SystemComponent {
+        private SmartSuggestionEngine smartSuggestionEngine;
+        private ComponentStatus status = ComponentStatus.UNINITIALIZED;
+        
         @Override public String getComponentId() { return "SmartSuggestionEngine"; }
         @Override public String getComponentName() { return "Smart Suggestion Engine"; }
         @Override public String getVersion() { return "1.0.0"; }
-        @Override public ComponentStatus getStatus() { return ComponentStatus.RUNNING; }
-        @Override public CompletableFuture<Boolean> initialize() { return CompletableFuture.completedFuture(true); }
-        @Override public CompletableFuture<Boolean> shutdown() { return CompletableFuture.completedFuture(true); }
-        @Override public Map<String, Object> getComponentInfo() { return new HashMap<>(); }
-        @Override public boolean isHealthy() { return true; }
+        @Override public ComponentStatus getStatus() { return status; }
+        
+        @Override
+        public CompletableFuture<Boolean> initialize() {
+            return CompletableFuture.supplyAsync(() -> {
+                try {
+                    smartSuggestionEngine = new SmartSuggestionEngine();
+                    status = ComponentStatus.RUNNING;
+                    LOG.info("SmartSuggestionEngine initialized");
+                    return true;
+                } catch (Exception e) {
+                    LOG.log(Level.SEVERE, "Failed to initialize SmartSuggestionEngine", e);
+                    status = ComponentStatus.ERROR;
+                    return false;
+                }
+            });
+        }
+        
+        @Override
+        public CompletableFuture<Boolean> shutdown() {
+            return CompletableFuture.supplyAsync(() -> {
+                try {
+                    smartSuggestionEngine = null;
+                    status = ComponentStatus.STOPPED;
+                    LOG.info("SmartSuggestionEngine shutdown");
+                    return true;
+                } catch (Exception e) {
+                    LOG.log(Level.SEVERE, "Failed to shutdown SmartSuggestionEngine", e);
+                    return false;
+                }
+            });
+        }
+        
+        @Override
+        public Map<String, Object> getComponentInfo() {
+            Map<String, Object> info = new HashMap<>();
+            info.put("instance", smartSuggestionEngine != null);
+            return info;
+        }
+        
+        @Override public boolean isHealthy() { return status == ComponentStatus.RUNNING && smartSuggestionEngine != null; }
     }
     
     private static class ContextAwareAssistantComponent implements SystemComponent {
+        private ContextAwareAssistant contextAwareAssistant;
+        private ComponentStatus status = ComponentStatus.UNINITIALIZED;
+        
         @Override public String getComponentId() { return "ContextAwareAssistant"; }
         @Override public String getComponentName() { return "Context-Aware Assistant"; }
         @Override public String getVersion() { return "1.0.0"; }
-        @Override public ComponentStatus getStatus() { return ComponentStatus.RUNNING; }
-        @Override public CompletableFuture<Boolean> initialize() { return CompletableFuture.completedFuture(true); }
-        @Override public CompletableFuture<Boolean> shutdown() { return CompletableFuture.completedFuture(true); }
-        @Override public Map<String, Object> getComponentInfo() { return new HashMap<>(); }
-        @Override public boolean isHealthy() { return true; }
+        @Override public ComponentStatus getStatus() { return status; }
+        
+        @Override
+        public CompletableFuture<Boolean> initialize() {
+            return CompletableFuture.supplyAsync(() -> {
+                try {
+                    contextAwareAssistant = ContextAwareAssistant.getInstance();
+                    status = ComponentStatus.RUNNING;
+                    LOG.info("ContextAwareAssistant initialized");
+                    return true;
+                } catch (Exception e) {
+                    LOG.log(Level.SEVERE, "Failed to initialize ContextAwareAssistant", e);
+                    status = ComponentStatus.ERROR;
+                    return false;
+                }
+            });
+        }
+        
+        @Override
+        public CompletableFuture<Boolean> shutdown() {
+            return CompletableFuture.supplyAsync(() -> {
+                try {
+                    contextAwareAssistant = null;
+                    status = ComponentStatus.STOPPED;
+                    LOG.info("ContextAwareAssistant shutdown");
+                    return true;
+                } catch (Exception e) {
+                    LOG.log(Level.SEVERE, "Failed to shutdown ContextAwareAssistant", e);
+                    return false;
+                }
+            });
+        }
+        
+        @Override
+        public Map<String, Object> getComponentInfo() {
+            Map<String, Object> info = new HashMap<>();
+            info.put("instance", contextAwareAssistant != null);
+            return info;
+        }
+        
+        @Override public boolean isHealthy() { return status == ComponentStatus.RUNNING && contextAwareAssistant != null; }
     }
     
     private static class NetBeansIntegrationManagerComponent implements SystemComponent {
+        private NetBeansIntegrationManager netBeansIntegrationManager;
+        private ComponentStatus status = ComponentStatus.UNINITIALIZED;
+        
         @Override public String getComponentId() { return "NetBeansIntegrationManager"; }
         @Override public String getComponentName() { return "NetBeans Integration Manager"; }
         @Override public String getVersion() { return "1.0.0"; }
-        @Override public ComponentStatus getStatus() { return ComponentStatus.RUNNING; }
-        @Override public CompletableFuture<Boolean> initialize() { return CompletableFuture.completedFuture(true); }
-        @Override public CompletableFuture<Boolean> shutdown() { return CompletableFuture.completedFuture(true); }
-        @Override public Map<String, Object> getComponentInfo() { return new HashMap<>(); }
-        @Override public boolean isHealthy() { return true; }
+        @Override public ComponentStatus getStatus() { return status; }
+        
+        @Override
+        public CompletableFuture<Boolean> initialize() {
+            return CompletableFuture.supplyAsync(() -> {
+                try {
+                    netBeansIntegrationManager = NetBeansIntegrationManager.getInstance();
+                    status = ComponentStatus.RUNNING;
+                    LOG.info("NetBeansIntegrationManager initialized");
+                    return true;
+                } catch (Exception e) {
+                    LOG.log(Level.SEVERE, "Failed to initialize NetBeansIntegrationManager", e);
+                    status = ComponentStatus.ERROR;
+                    return false;
+                }
+            });
+        }
+        
+        @Override
+        public CompletableFuture<Boolean> shutdown() {
+            return CompletableFuture.supplyAsync(() -> {
+                try {
+                    netBeansIntegrationManager = null;
+                    status = ComponentStatus.STOPPED;
+                    LOG.info("NetBeansIntegrationManager shutdown");
+                    return true;
+                } catch (Exception e) {
+                    LOG.log(Level.SEVERE, "Failed to shutdown NetBeansIntegrationManager", e);
+                    return false;
+                }
+            });
+        }
+        
+        @Override
+        public Map<String, Object> getComponentInfo() {
+            Map<String, Object> info = new HashMap<>();
+            info.put("instance", netBeansIntegrationManager != null);
+            return info;
+        }
+        
+        @Override public boolean isHealthy() { return status == ComponentStatus.RUNNING && netBeansIntegrationManager != null; }
     }
     
     private static class AdvancedAIIntegrationComponent implements SystemComponent {
+        private AdvancedAIIntegration advancedAIIntegration;
+        private ComponentStatus status = ComponentStatus.UNINITIALIZED;
+        
         @Override public String getComponentId() { return "AdvancedAIIntegration"; }
         @Override public String getComponentName() { return "Advanced AI Integration"; }
         @Override public String getVersion() { return "1.0.0"; }
-        @Override public ComponentStatus getStatus() { return ComponentStatus.RUNNING; }
-        @Override public CompletableFuture<Boolean> initialize() { return CompletableFuture.completedFuture(true); }
-        @Override public CompletableFuture<Boolean> shutdown() { return CompletableFuture.completedFuture(true); }
-        @Override public Map<String, Object> getComponentInfo() { return new HashMap<>(); }
-        @Override public boolean isHealthy() { return true; }
+        @Override public ComponentStatus getStatus() { return status; }
+        
+        @Override
+        public CompletableFuture<Boolean> initialize() {
+            return CompletableFuture.supplyAsync(() -> {
+                try {
+                    advancedAIIntegration = AdvancedAIIntegration.getInstance();
+                    status = ComponentStatus.RUNNING;
+                    LOG.info("AdvancedAIIntegration initialized");
+                    return true;
+                } catch (Exception e) {
+                    LOG.log(Level.SEVERE, "Failed to initialize AdvancedAIIntegration", e);
+                    status = ComponentStatus.ERROR;
+                    return false;
+                }
+            });
+        }
+        
+        @Override
+        public CompletableFuture<Boolean> shutdown() {
+            return CompletableFuture.supplyAsync(() -> {
+                try {
+                    advancedAIIntegration = null;
+                    status = ComponentStatus.STOPPED;
+                    LOG.info("AdvancedAIIntegration shutdown");
+                    return true;
+                } catch (Exception e) {
+                    LOG.log(Level.SEVERE, "Failed to shutdown AdvancedAIIntegration", e);
+                    return false;
+                }
+            });
+        }
+        
+        @Override
+        public Map<String, Object> getComponentInfo() {
+            Map<String, Object> info = new HashMap<>();
+            info.put("instance", advancedAIIntegration != null);
+            return info;
+        }
+        
+        @Override public boolean isHealthy() { return status == ComponentStatus.RUNNING && advancedAIIntegration != null; }
     }
     
     private static class MultiProviderRouterComponent implements SystemComponent {
+        private MultiProviderRouter multiProviderRouter;
+        private ComponentStatus status = ComponentStatus.UNINITIALIZED;
+        
         @Override public String getComponentId() { return "MultiProviderRouter"; }
         @Override public String getComponentName() { return "Multi-Provider Router"; }
         @Override public String getVersion() { return "1.0.0"; }
-        @Override public ComponentStatus getStatus() { return ComponentStatus.RUNNING; }
-        @Override public CompletableFuture<Boolean> initialize() { return CompletableFuture.completedFuture(true); }
-        @Override public CompletableFuture<Boolean> shutdown() { return CompletableFuture.completedFuture(true); }
-        @Override public Map<String, Object> getComponentInfo() { return new HashMap<>(); }
-        @Override public boolean isHealthy() { return true; }
+        @Override public ComponentStatus getStatus() { return status; }
+        
+        @Override
+        public CompletableFuture<Boolean> initialize() {
+            return CompletableFuture.supplyAsync(() -> {
+                try {
+                    multiProviderRouter = MultiProviderRouter.getInstance();
+                    status = ComponentStatus.RUNNING;
+                    LOG.info("MultiProviderRouter initialized");
+                    return true;
+                } catch (Exception e) {
+                    LOG.log(Level.SEVERE, "Failed to initialize MultiProviderRouter", e);
+                    status = ComponentStatus.ERROR;
+                    return false;
+                }
+            });
+        }
+        
+        @Override
+        public CompletableFuture<Boolean> shutdown() {
+            return CompletableFuture.supplyAsync(() -> {
+                try {
+                    multiProviderRouter = null;
+                    status = ComponentStatus.STOPPED;
+                    LOG.info("MultiProviderRouter shutdown");
+                    return true;
+                } catch (Exception e) {
+                    LOG.log(Level.SEVERE, "Failed to shutdown MultiProviderRouter", e);
+                    return false;
+                }
+            });
+        }
+        
+        @Override
+        public Map<String, Object> getComponentInfo() {
+            Map<String, Object> info = new HashMap<>();
+            info.put("instance", multiProviderRouter != null);
+            return info;
+        }
+        
+        @Override public boolean isHealthy() { return status == ComponentStatus.RUNNING && multiProviderRouter != null; }
     }
 }
