@@ -18,15 +18,13 @@
  */
 package com.bajinho.continuebeans.ui;
 
+import com.bajinho.continuebeans.ChatPanel;
 import java.awt.BorderLayout;
 import java.util.ResourceBundle;
 import org.openide.windows.TopComponent;
 import org.openide.windows.WindowManager;
 
-/**
- * Official Continue Beans chat top component.
- * Uses the implementation described by the Dark Theme UI specification.
- */
+/** Official Continue Beans chat top component using the validated dark UI. */
 @TopComponent.Description(
     preferredID = "ProfessionalContinueBeansTopComponent",
     persistenceType = TopComponent.PERSISTENCE_ALWAYS
@@ -37,7 +35,7 @@ public final class ProfessionalTopComponent extends TopComponent {
     private static final ResourceBundle BUNDLE = ResourceBundle.getBundle(
             "com.bajinho.continuebeans.ui.Bundle");
 
-    private DarkChatPanel chatPanel;
+    private ChatPanel chatPanel;
 
     public ProfessionalTopComponent() {
         initComponents();
@@ -47,7 +45,7 @@ public final class ProfessionalTopComponent extends TopComponent {
 
     private void initComponents() {
         setLayout(new BorderLayout());
-        chatPanel = new DarkChatPanel();
+        chatPanel = new ChatPanel();
         add(chatPanel, BorderLayout.CENTER);
     }
 
