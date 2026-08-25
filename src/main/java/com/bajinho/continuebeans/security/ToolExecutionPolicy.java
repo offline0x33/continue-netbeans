@@ -2,14 +2,11 @@ package com.bajinho.continuebeans.security;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Map;
 import java.util.Set;
 
 /**
  * Central policy for AI initiated tool execution.
- *
- * <p>File operations are restricted to the configured workspace. Dangerous
- * tools require an explicit confirmation argument. External process execution
- * is never inferred from user text and must opt in explicitly.</p>
  */
 public final class ToolExecutionPolicy {
 
@@ -33,13 +30,11 @@ public final class ToolExecutionPolicy {
         if (value == null || String.valueOf(value).isBlank()) {
             throw new SecurityException("Caminho é obrigatório.");
         }
-
         Path candidate = Paths.get(String.valueOf(value));
         if (!candidate.isAbsolute()) {
             candidate = workspaceRoot().resolve(candidate);
         }
         candidate = candidate.toAbsolutePath().normalize();
-
         Path root = workspaceRoot();
         if (!candidate.startsWith(root)) {
             throw new SecurityException("Operação fora do workspace bloqueada: " + candidate);
@@ -47,14 +42,14 @@ public final class ToolExecutionPolicy {
         return candidate;
     }
 
-    public static void validate(String functionName, java.util.Map<String, Object> arguments) {
+    public static void validate(String functionName, Map<String, Object> arguments) {
         if (functionName == null || functionName.isBlank()) {
             throw new SecurityException("Tool sem nome bloqueada.");
         }
 
-        java.util.Map<String, Object> args = arguments == null ? java.util.Map.of() : arguments;
+        Map<String, Object> args = arguments == null ? Map.of() : arguments;
         if (FILE_TOOLS.contains(functionName)) {
-            String key = functionName.equals("list_directory") ? "directoryPath" : "filePath";
+            String key = "list_directory".equals(functionName) ? "directoryPath" : "filePath";
             if (args.containsKey(key)) {
                 requireWorkspacePath(args.get(key));
             }
@@ -62,11 +57,16 @@ public final class ToolExecutionPolicy {
 
         switch (functionName) {
             case "get_project_info":
-            case "build_project":
             case "open_project":
                 if (args.containsKey("projectPath")) {
                     requireWorkspacePath(args.get("projectPath"));
                 }
+                break;
+            case "build_project":
+                if (args.containsKey("projectPath")) {
+                    requireWorkspacePath(args.get("projectPath"));
+                }
+                requireConfirmation(args, "build_project");
                 break;
             case "create_project":
                 if (args.containsKey("location")) {
@@ -77,17 +77,13 @@ public final class ToolExecutionPolicy {
                 requireWorkspacePath(args.get("filePath"));
                 requireConfirmation(args, "delete_file");
                 break;
-            case "build_project":
-                requireConfirmation(args, "build_project");
-                break;
             default:
                 break;
         }
     }
 
-    private static void requireConfirmation(java.util.Map<String, Object> arguments, String operation) {
-        Object confirmed = arguments.get("confirm");
-        if (!Boolean.TRUE.equals(confirmed)) {
+    private static void requireConfirmation(Map<String, Object> arguments, String operation) {
+        if (!Boolean.TRUE.equals(arguments.get("confirm"))) {
             throw new SecurityException("Confirmação explícita obrigatória para " + operation + ".");
         }
     }
