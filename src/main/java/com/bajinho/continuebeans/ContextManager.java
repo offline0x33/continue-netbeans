@@ -63,26 +63,32 @@ public class ContextManager {
             }
         }
 
-        return limitContext(promptWithContext.toString());
+        return limitContext(promptWithContext.toString(), input);
     }
 
     static String limitContext(String context) {
+        return limitContext(context, context);
+    }
+
+    static String limitContext(String context, String originalInput) {
         int maxChars = getMaxContextChars();
         if (context.length() <= maxChars) {
             return context;
         }
 
         int markerLength = 96;
-        int available = Math.max(0, maxChars - markerLength);
-        int headChars = available / 2;
-        int tailChars = available - headChars;
+        String prefix = originalInput == null ? "" : originalInput;
+        int available = Math.max(0, maxChars - prefix.length() - markerLength);
+        int tailChars = Math.min(available, Math.max(0, context.length() - prefix.length()));
 
         String marker = "\\n... [Contexto Truncado para " + maxChars + " caracteres; "
-                + "início e fim preservados] ...\\n";
+                + "pedido original preservado e fim do contexto preservado] ...\\n";
 
-        return context.substring(0, headChars)
-                + marker
-                + context.substring(context.length() - tailChars);
+        if (prefix.length() >= context.length()) {
+            return prefix;
+        }
+
+        return prefix + marker + context.substring(context.length() - tailChars);
     }
 
     static int getMaxContextChars() {
