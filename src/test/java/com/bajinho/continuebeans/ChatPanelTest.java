@@ -35,7 +35,7 @@ class ChatPanelTest {
 
     @Test
     void testClearChat() throws Exception {
-        onEdt(() -> assertDoesNotThrow(() -> chatPanel.clearChat()));
+        onEdt(() -> chatPanel.clearChat());
     }
 
     @Test
@@ -79,7 +79,7 @@ class ChatPanelTest {
             assertNotNull(sendButton);
 
             inputField.setText("test prompt");
-            assertDoesNotThrow(sendButton::doClick);
+            sendButton.doClick();
         });
     }
 
