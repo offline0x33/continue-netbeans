@@ -11,6 +11,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -32,14 +33,28 @@ public class AIToolCallingIntegration {
     private final NetBeansFunctionExecutor functionExecutor;
     private final HttpClient httpClient;
     private final Gson gson;
+    private volatile String workspaceRoot;
 
     public AIToolCallingIntegration() {
+        this(null);
+    }
+
+    public AIToolCallingIntegration(String workspaceRoot) {
         this.functionDefinitions = new NetBeansFunctionDefinitions();
         this.functionExecutor = new NetBeansFunctionExecutor();
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(15))
                 .build();
         this.gson = new Gson();
+        this.workspaceRoot = workspaceRoot;
+    }
+
+    /**
+     * Update the workspace root used to resolve relative file and directory tool arguments.
+     * Absolute paths are never rewritten.
+     */
+    public void setWorkspaceRoot(String workspaceRoot) {
+        this.workspaceRoot = workspaceRoot;
     }
 
     public CompletableFuture<AIResponse> processRequestWithToolCalling(String userMessage, String aiProvider) {
@@ -71,6 +86,7 @@ public class AIToolCallingIntegration {
                         String rawArguments = function.has("arguments")
                                 ? function.get("arguments").getAsString() : "{}";
                         Map<String, Object> arguments = parseArguments(rawArguments);
+                        resolveRelativePathArguments(arguments);
                         JsonObject toolMessage = executeTool(functionName, arguments, toolCall, aiProvider);
                         messages.add(toolMessage);
                     }
@@ -84,6 +100,33 @@ public class AIToolCallingIntegration {
                 return AIResponse.error("Erro de integração AI: " + safeMessage(e));
             }
         });
+    }
+
+    private void resolveRelativePathArguments(Map<String, Object> arguments) {
+        if (arguments == null || workspaceRoot == null || workspaceRoot.isBlank()) {
+            return;
+        }
+
+        resolvePathArgument(arguments, "filePath");
+        resolvePathArgument(arguments, "directoryPath");
+        resolvePathArgument(arguments, "projectPath");
+        resolvePathArgument(arguments, "path");
+    }
+
+    private void resolvePathArgument(Map<String, Object> arguments, String key) {
+        Object value = arguments.get(key);
+        if (!(value instanceof String)) {
+            return;
+        }
+
+        String pathValue = (String) value;
+        if (pathValue.isBlank() || Path.of(pathValue).isAbsolute()) {
+            return;
+        }
+
+        String resolved = Path.of(workspaceRoot).resolve(pathValue).normalize().toString();
+        arguments.put(key, resolved);
+        LOG.fine(() -> "Resolved relative workspace path '" + pathValue + "' to '" + resolved + "'");
     }
 
     private JsonObject executeTool(String functionName, Map<String, Object> arguments,
@@ -238,6 +281,7 @@ public class AIToolCallingIntegration {
     public CompletableFuture<NetBeansFunctionExecutor.FunctionResult> executeFunction(
             String functionName, Map<String, Object> arguments) {
         try {
+            resolveRelativePathArguments(arguments);
             ToolExecutionPolicy.validate(functionName, arguments);
             return functionExecutor.executeFunction(functionName, arguments);
         } catch (SecurityException denied) {

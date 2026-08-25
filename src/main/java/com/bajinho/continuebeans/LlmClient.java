@@ -44,6 +44,7 @@ public class LlmClient {
         }
 
         if (shouldUseWorkspaceTools(perguntaUsuario)) {
+            toolCallingIntegration.setWorkspaceRoot(EditorUtils.getCurrentProjectDirectory());
             toolCallingIntegration.processRequestWithToolCalling(perguntaUsuario, "lmstudio")
                     .thenAccept(response -> {
                         if (response == null || response.getContent() == null || response.getContent().isBlank()) {
@@ -68,6 +69,7 @@ public class LlmClient {
             String mode) {
         String selectedModel = model != null ? model : ContinueSettings.getModel();
         if (shouldUseWorkspaceTools(perguntaUsuario)) {
+            toolCallingIntegration.setWorkspaceRoot(EditorUtils.getCurrentProjectDirectory());
             return toolCallingIntegration.processRequestWithToolCalling(perguntaUsuario, "lmstudio")
                     .thenApply(AIToolCallingIntegration.AIResponse::getContent);
         }
