@@ -110,24 +110,24 @@
                                             <minimum>0.70</minimum>
                                         </limit>
                                     </limits>
-                                    <excludes>
-                                        <exclude>**/netbeans/**</exclude>
-                                        <exclude>**/assistant/**</exclude>
-                                        <exclude>**/analytics/**</exclude>
-                                        <exclude>**/filesystem/**</exclude>
-                                        <exclude>**/editor/**</exclude>
-                                        <exclude>**/security/**</exclude>
-                                        <exclude>**/cloud/**</exclude>
-                                        <exclude>**/ai/**</exclude>
-                                        <exclude>**/system/**</exclude>
-                                        <exclude>**/deployment/**</exclude>
-                                        <exclude>**/mcp/**</exclude>
-                                        <exclude>**/microservices/**</exclude>
-                                        <exclude>**/ui/**</exclude>
-                                        <exclude>**/automation/**</exclude>
-                                    </excludes>
                                 </rule>
                             </rules>
+                            <excludes>
+                                <exclude>**/netbeans/**</exclude>
+                                <exclude>**/assistant/**</exclude>
+                                <exclude>**/analytics/**</exclude>
+                                <exclude>**/filesystem/**</exclude>
+                                <exclude>**/editor/**</exclude>
+                                <exclude>**/security/**</exclude>
+                                <exclude>**/cloud/**</exclude>
+                                <exclude>**/ai/**</exclude>
+                                <exclude>**/system/**</exclude>
+                                <exclude>**/deployment/**</exclude>
+                                <exclude>**/mcp/**</exclude>
+                                <exclude>**/microservices/**</exclude>
+                                <exclude>**/ui/**</exclude>
+                                <exclude>**/automation/**</exclude>
+                            </excludes>
                         </configuration>
                     </execution>
                 </executions>
