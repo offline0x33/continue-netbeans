@@ -10,7 +10,6 @@ import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
-import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
@@ -23,12 +22,6 @@ import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
-import java.awt.GridLayout;
-import java.awt.Insets;
-import java.awt.event.ActionListener;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
 
 /**
  * Dark task-driven chat UI. The visual state is a projection of the real
@@ -57,10 +50,10 @@ public class ChatPanel extends JPanel {
     private final JPanel conversationPanel;
     private final JPanel taskPanelHost;
     private final JLabel statusLabel;
-    private final JTextField promptInput;
-    private final JButton sendButton;
-    private final JComboBox<String> modeSelector;
     private final JLabel taskProgressLabel;
+    private JTextField promptInput;
+    private JButton sendButton;
+    private JComboBox<String> modeSelector;
     private boolean isProcessing;
     private TaskPlan activePlan;
 
@@ -71,7 +64,7 @@ public class ChatPanel extends JPanel {
 
         setLayout(new BorderLayout());
         setBackground(BG);
-        setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
+        setBorder(BorderFactory.createEmptyBorder());
 
         add(createTopBar(), BorderLayout.NORTH);
 
@@ -138,7 +131,7 @@ public class ChatPanel extends JPanel {
         wrapper.setBackground(BG);
         wrapper.setBorder(BorderFactory.createEmptyBorder(8, 16, 4, 16));
 
-        JPanel box = roundedPanel(PANEL, BORDER, 12);
+        JPanel box = roundedPanel(PANEL, BORDER);
         box.setLayout(new BorderLayout(8, 8));
         box.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(BORDER), BorderFactory.createEmptyBorder(10, 12, 8, 12)));
@@ -362,7 +355,7 @@ public class ChatPanel extends JPanel {
         }
         taskProgressLabel.setText(done + " / " + activePlan.getTasks().size() + " tasks done");
 
-        JPanel card = roundedPanel(PANEL, BORDER, 8);
+        JPanel card = roundedPanel(PANEL, BORDER);
         card.setLayout(new BorderLayout());
         card.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(BORDER), BorderFactory.createEmptyBorder(10, 12, 10, 12)));
@@ -410,7 +403,7 @@ public class ChatPanel extends JPanel {
 
     private void appendCodeResult(String title, String result) {
         String normalized = result.length() > 700 ? result.substring(0, 700) + "…" : result;
-        JPanel card = roundedPanel(PANEL, BORDER, 8);
+        JPanel card = roundedPanel(PANEL, BORDER);
         card.setLayout(new BorderLayout(8, 8));
         card.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(BORDER), BorderFactory.createEmptyBorder(10, 12, 10, 12)));
@@ -437,7 +430,7 @@ public class ChatPanel extends JPanel {
     }
 
     private void appendWarning(String message) {
-        JPanel warning = roundedPanel(WARNING_BG, WARNING_BORDER, 8);
+        JPanel warning = roundedPanel(WARNING_BG, WARNING_BORDER);
         warning.setLayout(new BorderLayout(8, 0));
         warning.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(WARNING_BORDER), BorderFactory.createEmptyBorder(10, 12, 10, 12)));
@@ -499,7 +492,7 @@ public class ChatPanel extends JPanel {
         return button;
     }
 
-    private JPanel roundedPanel(Color background, Color border, int radius) {
+    private JPanel roundedPanel(Color background, Color border) {
         JPanel panel = new JPanel();
         panel.setBackground(background);
         panel.setBorder(BorderFactory.createCompoundBorder(
