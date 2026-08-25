@@ -1,373 +1,111 @@
 # Continue Beans ☕️🚀
 
-![Continue Beans Logo](https://github.com/offline0x33/continue-netbeans/blob/main/continue_beans_logo.png)
+Assistente de IA para Apache NetBeans, com foco em desenvolvimento assistido por IA local e compatível com APIs no estilo OpenAI.
 
-[![NetBeans Version](https://img.shields.io/badge/NetBeans-12.0+-blue.svg?style=for-the-badge&logo=apachenetbeans)](https://netbeans.apache.org/)
-[![Java Version](https://img.shields.io/badge/Java-11+-orange.svg?style=for-the-badge&logo=openjdk)](https://openjdk.org/)
-[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey?style=for-the-badge)](https://github.com/bajinho/continue-netbeans)
-[![License](https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge)](LICENSE)
-[![Build Status](https://img.shields.io/badge/Build-Passing-brightgreen.svg?style=for-the-badge)](https://github.com/bajinho/continue-netbeans)
-[![Tests](https://img.shields.io/badge/Tests-338%20Passing-blue.svg?style=for-the-badge)](https://github.com/bajinho/continue-netbeans)
-[![AI Integration](https://img.shields.io/badge/AI-Function%20Calling-purple.svg?style=for-the-badge)](https://github.com/bajinho/continue-netbeans)
+## Estado atual
 
-**Continue Beans** é a plataforma enterprise-grade de IA para desenvolvedores NetBeans. Integre o poder do **LM Studio**, **Ollama** e outros servidores compatíveis com a API OpenAI diretamente no seu fluxo de trabalho, trazendo **function calling completo**, autocompletar inteligente, refatoração de código e **acesso completo ao NetBeans Platform** para dentro da sua IDE favorita.
+![CI/CD](https://github.com/offline0x33/continue-netbeans/actions/workflows/ci.yml/badge.svg)
 
----
+O `main` mantém uma cadeia de validação contínua para Java 11, 17 e 21, testes automatizados, build do módulo NBM, cobertura e análise de qualidade.
 
-## ✨ Funcionalidades Enterprise-Grade
+### O que já está funcionando
 
-### 🤖 **AI Integration Avançada**
-- ⚡️ **Chat em Tempo Real (Streaming):** Respostas instantâneas com visualização dinâmica de código
-- 🧠 **AI Context System:** Contexto completo e estruturado para modelos de IA
-- 🎯 **NetBeans-Aware AI:** O modelo entende e pode interagir com todos os recursos do NetBeans
-- 🔄 **Multi-Provider Support:** LM Studio, Ollama, OpenAI, Claude, Gemini e outros
-- 🛠️ **Function Calling:** Execução direta de funções NetBeans via AI
+- Chat integrado ao NetBeans com interface dedicada.
+- Integração principal com LM Studio por API compatível com OpenAI.
+- Streaming de respostas para o painel do NetBeans.
+- Seleção de modelo e modos `Ask`, `Code` e `Planning`.
+- Inclusão de código selecionado do editor como contexto.
+- Aplicação ou inserção de blocos de código gerados pela IA, com confirmação do usuário.
+- Descoberta de modelos disponíveis no servidor local.
+- Gerenciamento de histórico de conversa com truncamento por limite de tokens.
+- Histórico de conversa protegido contra acesso concorrente e exposição do estado interno.
+- Suite de testes unitários com JUnit 5 e integração com Cucumber.
+- Empacotamento como plugin NetBeans (`.nbm`).
 
-### 🛠 **Integração Profunda com NetBeans**
-- 🗂️ **File System Operations:** Ler/criar/modificar qualquer arquivo do projeto
-- 🏗️ **Project Management:** Gerenciar projetos NetBeans completos
-- 🪟 **Window Management:** Controlar janelas e componentes da IDE
-- ✏️ **Editor Integration:** Ler/modificar código diretamente no editor
-- 🔧 **Code Generation:** Gerar classes, métodos, testes completos
-- 🐛 **Debugging & Analysis:** Analisar erros e sugerir correções
+## Provedores
 
-### 🌐 **Sistema de Contexto Inteligente**
-- 📋 **@file Commands:** Acesso direto a arquivos específicos
-- 🏛️ **@codebase Integration:** Indexação inteligente do projeto
-- 🎨 **Markdown Nativo:** Visualização elegante com syntax highlighting
-- 📊 **Context Management:** Gerenciamento automático de contexto e tokens
+A arquitetura usa a abstração `LlmProvider`, permitindo evoluir o suporte a outros backends sem acoplar a UI ao protocolo específico.
 
----
+O fluxo principal atualmente utiliza `LmStudioProvider`. O projeto também foi estruturado para acomodar outros serviços compatíveis, mas essas integrações não devem ser consideradas equivalentes ao caminho principal até possuírem cobertura e validação próprias.
 
-## 📸 Interface do Usuário
+## Arquitetura resumida
 
-![Chat UI Mockup](https://github.com/offline0x33/continue-netbeans/blob/main/chat_ui_mockup.png)
-
-*Interface moderna e enterprise-grade integrada perfeitamente ao ecossistema NetBeans.*
-
----
-
-## 🚀 Como Começar
-
-### Pré-requisitos
-1. **NetBeans:** Versão 12.0 ou superior (Recomendado: NetBeans 20+)
-2. **Java:** JDK 11 ou superior
-3. **AI Provider:** LM Studio, Ollama ou qualquer API compatível com OpenAI
-
-### Instalação
-1. Baixe o arquivo `.nbm` da [última release](https://github.com/offline0x33/continue-netbeans/releases)
-2. No NetBeans, vá em `Tools` > `Plugins`
-3. Clique na aba `Downloaded` > `Add Plugins...` e selecione o arquivo baixado
-4. Reinicie o NetBeans se solicitado
-
-### Configuração
-1. Abra as opções em `Tools` > `Options` > `Miscellaneous` > `Continue Beans`
-2. Configure seu **AI Provider** (LM Studio ou Ollama)
-3. Configure a **URL da API** e **Modelo**
-4. Teste a conexão e aplique as configurações
-
----
-
-## 🤖 **AI Providers Suportados**
-
-### 🚀 **LM Studio**
-```bash
-# Instalação e configuração
-# 1. Baixe e instale LM Studio
-# 2. Baixe um modelo compatível (ex: qwen3-4b-function-calling-finetuned)
-# 3. Inicie o servidor local
-# URL padrão: http://127.0.0.1:1234
+```text
+NetBeans UI
+    |
+    v
+ContinueTopComponent / ProfessionalTopComponent
+    |
+    v
+LlmClient
+    |
+    v
+LlmProvider
+    |
+    +--> LmStudioProvider
+    |
+    v
+ConversationManager
 ```
 
-### 🐳 **Ollama (Docker)**
-```bash
-# Setup automático com Docker
-cd docker
-./setup-ollama.sh
+A camada de conversa mantém o contexto da sessão e aplica truncamento automático conforme o limite configurado.
 
-# Ou manualmente
-docker-compose up -d
-docker exec ollama ollama pull qwen2.5:7b
-# URL padrão: http://127.0.0.1:11434
-```
+## Build local
 
-### 🌐 **Outros Provedores**
-- **OpenAI API:** Configure endpoint e API key
-- **LocalAI:** Servidor local compatível
-- **Custom Endpoint:** Qualquer API OpenAI-compatible
+Requisitos:
 
----
+- Java 11 ou superior para desenvolvimento e execução dos testes;
+- Maven 3.9+;
+- Apache NetBeans compatível com a plataforma `RELEASE200` usada pelo projeto;
+- LM Studio ou outro servidor compatível com a API configurada para recursos de IA.
 
-## ⌨️ Comandos de Contexto
-
-Potencialize suas perguntas usando o sistema de indexação rápida:
-
-| Comando | Descrição | Exemplo |
-| :--- | :--- | :--- |
-| `@file:nome` | Adiciona o conteúdo de um arquivo específico ao prompt | `Como refatorar o @file:LlmClient.java?` |
-| `@codebase` | Escaneia o projeto atual e gera um resumo inteligente do contexto | `@codebase explique a arquitetura deste projeto.` |
-
-### 🎯 **AI NetBeans Capabilities**
-O AI model configurado com Continue Beans tem acesso completo a:
-
-- ✅ **File System Operations:** Ler/criar/modificar/deletar qualquer arquivo
-- ✅ **Project Management:** Abrir/buildar/configurar projetos NetBeans
-- ✅ **Window Management:** Controlar janelas e componentes
-- ✅ **Editor Integration:** Ler/modificar código no editor
-- ✅ **Code Generation:** Gerar classes Java completas
-- ✅ **Refactoring:** Refatorar e otimizar código
-- ✅ **Debugging:** Analisar erros e sugerir correções
-- ✅ **Testing:** Criar testes unitários e de integração
-- ✅ **Documentation:** Gerar documentação completa
-- ✅ **Configuration:** Gerenciar Maven/Gradle e settings
-
----
-
-## 🛠 **Function Calling System**
-
-### 🎯 **Como Funciona**
-O AI pode executar diretamente funções NetBeans:
-
-```
-User: "crie hello world em python"
-AI: "**EXECUTE:** create_file(filePath=hello_world.py, content=print("Hello, World!"))"
-Sistema: ✅ Arquivo criado com sucesso!
-```
-
-### 🔧 **Funções Disponíveis**
-
-**Operações de Arquivo:**
-- `create_file(filePath, content)` - Criar arquivos
-- `read_file(filePath)` - Ler conteúdo de arquivos
-- `modify_file(filePath, content)` - Modificar arquivos
-- `delete_file(filePath)` - Deletar arquivos
-- `list_files(directory)` - Listar arquivos em diretório
-
-**Gerenciamento de Projetos:**
-- `create_project(name, type)` - Criar projetos NetBeans
-- `build_project()` - Buildar projetos
-- `get_project_info()` - Obter informações do projeto
-
-**Gerenciamento de Janelas/Editor:**
-- `open_editor(file)` - Abrir arquivos no editor
-- `close_editor(file)` - Fechar arquivos no editor
-- `save_editor(file)` - Salvar arquivos no editor
-- `get_active_windows()` - Listar janelas abertas
-
-**Geração de Código:**
-- `generate_class(className, packageName)` - Gerar classes Java
-- `generate_interface(interfaceName, packageName)` - Gerar interfaces
-- `generate_test(className)` - Gerar testes unitários
-
-**Análise e Refatoração:**
-- `analyze_code(file)` - Analisar código fonte
-- `refactor_code(file, type)` - Refatorar código
-
-**Gerenciamento de Plugins/Módulos:**
-- `list_modules(enabledOnly)` - Listar módulos NetBeans instalados
-- `get_module_info(moduleCodeName)` - Obter informações detalhadas de módulo
-- `get_module_services(moduleCodeName)` - Listar serviços fornecidos por módulo
-- `enable_module(moduleCodeName)` - Habilitar módulo desativado
-- `disable_module(moduleCodeName)` - Desabilitar módulo
-
----
-
-## 🏗️ **Arquitetura Enterprise**
-
-### 📊 **Estatísticas do Projeto**
-- **65 classes principais** poderosas
-- **338 testes unitários** passando
-- **100% Java 11 compatible**
-- **Full async operations**
-- **Production-ready architecture**
-- **Function calling completo**
-- **Complete System Integration** com componentes reais
-
-### 🎯 **Componentes Principais**
-1. **AI Integration** - LM Studio, Ollama, OpenAI
-2. **Function Calling** - Execução direta de funções NetBeans
-3. **Configuration Panel** - Interface de configuração completa
-4. **Chat Interface** - UI moderna com streaming
-5. **Context System** - Gerenciamento inteligente de contexto
-6. **Error Handling** - Tratamento robusto de erros
-7. **Testing Framework** - 338 testes automatizados
-
----
-
-## 💬 Conversas Multi-Turn
-
-O plugin mantém automaticamente o histórico de conversas entre mensagens:
-
-- **Histórico Persistente:** Cada mensagem (user/assistant) é armazenada na sessão
-- **Truncação Inteligente de Tokens:** Quando o histórico ultrapassa o limite, mensagens antigas são removidas automaticamente
-- **Limite de Contexto Configurável:** Ajustável nas configurações
-
----
-
-## 🔄 Resiliência e Tratamento de Erros
-
-O sistema foi projetado para ser robusto em produção:
-
-- **Retry Automático:** Erros 429 (Rate Limit) disparam retry com backoff exponencial
-- **Timeouts Amigos:** Mensagens de erro claras quando a API demora
-- **Validação de Payloads:** Todas as requisições são validadas antes do envio
-- **Fragmentação de Stream:** Suporte a parsing incremental de respostas JSON
-
----
-
-## 📊 Requisitos de Teste
-
-Todos os recursos são cobertos por testes:
-
-| Componente | Testes Unitários | Cobertura |
-| :--- | :--- | :--- |
-| `AI Integration` | ✅ 45 tests | ✅ 95%+ |
-| `Function Calling` | ✅ 38 tests | ✅ 98% |
-| `Configuration Panel` | ✅ 22 tests | ✅ 100% |
-| `Chat Interface` | ✅ 31 tests | ✅ 92% |
-| `Error Handling` | ✅ 19 tests | ✅ 96% |
-| **TOTAL** | **✅ 338 tests** | **✅ 95%+** |
-
----
-
-## 📜 Retrocompatibilidade e Suporte
-
-| Recurso | Suporte e Versões |
-| :--- | :--- |
-| **NetBeans Support** | Suporta NetBeans 12, 13, 14, 15, 16, 17, 18, 19 e **20 (Full Support)** |
-| **Java Support** | Desenvolvido com Java 11; compatível com Java 17, 21 e superiores |
-| **LM Studio** | Suporte total para versões legadas (`/api/v1`) e modernas (`/v1`) |
-| **Ollama** | Suporte completo via Docker e instalação local |
-| **Outros Provedores** | Compatível com LocalAI, OpenAI e GPT-4 local |
-
----
-
-## 🛠 Desenvolvimento e Testes
-
-O projeto utiliza **TDD/BDD** para garantir a qualidade.
+Execute:
 
 ```bash
-# Rodar todos os testes
-mvn test
-
-# Gerar arquivo NBM para distribuição
 mvn clean install
-
-# Rodar com cobertura de código
-mvn jacoco:report
-
-# Testar function calling
-./test_function_calling_support.sh
-
-# Testar parsing
-./test_balanced_parsing.sh
 ```
 
----
-
-## 🚀 **AI Context Configuration**
-
-### 🔧 **Como Configurar AI Model com NetBeans Context**
-
-```java
-// 1. Importe
-import com.bajinho.continuebeans.ai.AISystemContext;
-
-// 2. Obtenha o contexto
-String systemPrompt = AISystemContext.getSystemPromptContext();
-
-// 3. Configure seu AI model
-new ChatMessage(Role.SYSTEM, systemPrompt);
-```
-
-### 🎯 **Resultado do Contexto NetBeans**
-
-**❌ Antes:**
-```
-AI: "Eu não tenho acesso direto ao código fonte..."
-```
-
-**✅ Depois:**
-```
-AI: "🚀 Sou um assistente AI com ACESSO COMPLETO ao NetBeans Platform!
-✅ Posso ler/criar/modificar qualquer arquivo do projeto
-🏗️ Posso gerenciar projetos NetBeans completos
-🪟 Posso controlar janelas e componentes NetBeans..."
-```
-
----
-
-## 🤝 Contribuição
-
-Contribuições são bem-vindas! Se você encontrou um bug ou tem uma ideia para uma nova funcionalidade, abra uma [Issue](https://github.com/offline0x33/continue-netbeans/issues) ou envie um Pull Request.
-
-### 📋 **Guidelines de Contribuição**
-1. **Fork** o projeto
-2. **Crie** uma branch para sua feature
-3. **Escreva** testes para sua funcionalidade
-4. **Garanta** que todos os testes passam
-5. **Faça** o commit com mensagem clara
-6. **Abra** um Pull Request
-
-**Feito com ❤️ por [offline0x33](https://github.com/bajinho)**
-
----
-
-## 📄 **Licença**
-
-Este projeto está licenciado sob a Licença MIT - veja o arquivo [LICENSE](LICENSE) para detalhes.
-
----
-
-## 🏆 **Status do Projeto**
-
-**✅ PROJETO COMPLETO - PRODUCTION-READY**
-
-- ✅ **65 classes** enterprise-grade
-- ✅ **338 testes** passando
-- ✅ **Function Calling** completo e funcional
-- ✅ **Multi-provider AI** integration
-- ✅ **NetBeans Platform** integration profunda
-- ✅ **Configuration Panel** intuitivo
-- ✅ **Enterprise-grade** architecture production-ready
-- ✅ **Complete System Integration** com componentes reais
-- ✅ **NetBeansWindowManager** - Gerenciamento de janelas
-- ✅ **NetBeansFileSystem** - Operações de arquivo
-- ✅ **ProjectAnalyzer** - Análise de projetos
-- ✅ **FileWatcher** - Monitoramento de arquivos
-- ✅ **TemplateEngine** - Motor de templates
-- ✅ **WorkflowEngine** - Motor de workflows
-- ✅ **FileOperationManager** - Gerenciamento de operações
-- ✅ **IntelligentCodeEditor** - Editor inteligente
-- ✅ **SmartSuggestionEngine** - Motor de sugestões
-- ✅ **ContextAwareAssistant** - Assistente com contexto
-- ✅ **NetBeansIntegrationManager** - Integração NetBeans
-- ✅ **AdvancedAIIntegration** - Integração AI avançada
-- ✅ **MultiProviderRouter** - Roteamento multi-provider
-
-**🚀 Continue Beans é a plataforma mais completa de IA para NetBeans!**
-
----
-
-## 🎯 **Quick Start**
+Para a validação completa usada no CI:
 
 ```bash
-# 1. Clone o projeto
-git clone https://github.com/offline0x33/continue-netbeans.git
-cd continue-netbeans
-
-# 2. Build e instale
-mvn clean install
-
-# 3. Configure Ollama (opcional)
-cd docker
-./setup-ollama.sh
-
-# 4. Instale o plugin no NetBeans
-# Tools > Plugins > Downloaded > Add Plugins
-# Selecione: target/nbm/continue-beans-1.0-SNAPSHOT.nbm
-
-# 5. Configure e use!
-# Tools > Options > Miscellaneous > Continue Beans
-# Window > Continue Beans Chat
+mvn clean verify
 ```
+
+O projeto produz o plugin NetBeans em `target/*.nbm`.
+
+## CI/CD
+
+O pipeline oficial executa:
+
+```text
+Java 11 ──┐
+Java 17 ──┼──> testes ──> build ──> NBM
+Java 21 ──┘                  |
+                             +--> cobertura
+                             +--> qualidade
+                             +--> release
+```
+
+A matriz atual cobre Java 11, 17 e 21. O pipeline também verifica a existência do artefato NBM antes de publicar releases.
+
+## Qualidade e testes
+
+Os testes usam JUnit 5, Mockito e Cucumber/JUnit Platform. A configuração de JaCoCo mantém a verificação de cobertura integrada ao ciclo `verify`, com exclusões explícitas para áreas que ainda não fazem parte do núcleo coberto.
+
+As correções recentes também endureceram o histórico de conversas contra concorrência e adicionaram testes de regressão para esse comportamento.
+
+## Interface
+
+O projeto possui uma interface principal baseada no `ProfessionalTopComponent`/`ProfessionalChatPanel` e componentes legados que ainda fazem parte da base de código. A consolidação desses caminhos deve ser tratada como evolução arquitetural, não como funcionalidade já concluída.
+
+## Roadmap técnico
+
+- Consolidar os caminhos de UI duplicados sem quebrar compatibilidade do módulo.
+- Reduzir código de scaffolding e funcionalidades não conectadas ao fluxo principal.
+- Expandir a cobertura dos provedores e integrações MCP com testes de comportamento reais.
+- Melhorar cancelamento e ciclo de vida de operações assíncronas do streaming.
+- Fortalecer análise estática e documentação de decisões arquiteturais.
+
+## Licença
+
+Este projeto segue a licença Apache 2.0.
