@@ -11,6 +11,7 @@ import java.util.Set;
 public final class ToolExecutionPolicy {
 
     private static final String WORKSPACE_PROPERTY = "continuebeans.workspace";
+    private static final String ALLOW_BUILD_PROPERTY = "continuebeans.allowBuild";
     private static final Set<String> FILE_TOOLS = Set.of(
             "read_file", "create_file", "update_file", "delete_file", "list_directory",
             "open_editor", "analyze_code", "get_syntax_errors", "get_code_metrics", "refactor_code");
@@ -66,7 +67,10 @@ public final class ToolExecutionPolicy {
                 if (args.containsKey("projectPath")) {
                     requireWorkspacePath(args.get("projectPath"));
                 }
-                requireConfirmation(args, "build_project");
+                if (!Boolean.getBoolean(ALLOW_BUILD_PROPERTY)) {
+                    throw new SecurityException(
+                            "Build por agente bloqueado. Habilite -D" + ALLOW_BUILD_PROPERTY + "=true para permitir.");
+                }
                 break;
             case "create_project":
                 if (args.containsKey("location")) {
@@ -75,16 +79,12 @@ public final class ToolExecutionPolicy {
                 break;
             case "delete_file":
                 requireWorkspacePath(args.get("filePath"));
-                requireConfirmation(args, "delete_file");
+                if (!Boolean.TRUE.equals(args.get("confirm"))) {
+                    throw new SecurityException("Confirmação explícita obrigatória para delete_file.");
+                }
                 break;
             default:
                 break;
-        }
-    }
-
-    private static void requireConfirmation(Map<String, Object> arguments, String operation) {
-        if (!Boolean.TRUE.equals(arguments.get("confirm"))) {
-            throw new SecurityException("Confirmação explícita obrigatória para " + operation + ".");
         }
     }
 }
