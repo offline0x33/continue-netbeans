@@ -64,7 +64,7 @@ jobs:
   publish-release:
     needs: build-and-test
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || github.event_name == 'workflow_dispatch'
 
     steps:
     - name: Checkout code
@@ -79,31 +79,46 @@ jobs:
         distribution: 'temurin'
         cache: maven
 
-    - name: Get version from pom.xml
+    - name: Get version and release tag
       id: version
+      shell: bash
       run: |
         VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+        if [[ "$VERSION" == *-SNAPSHOT ]]; then
+          SHORT_SHA="${GITHUB_SHA:0:7}"
+          TAG="v${VERSION}.${GITHUB_RUN_NUMBER}.${SHORT_SHA}"
+          PRERELEASE=true
+          NAME="Continue Beans ${VERSION} #${GITHUB_RUN_NUMBER}"
+        else
+          TAG="v${VERSION}"
+          PRERELEASE=false
+          NAME="Continue Beans v${VERSION}"
+        fi
         echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-        echo "Current version: ${VERSION}"
+        echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+        echo "name=${NAME}" >> "$GITHUB_OUTPUT"
+        echo "prerelease=${PRERELEASE}" >> "$GITHUB_OUTPUT"
+        echo "Version: ${VERSION}"
+        echo "Tag: ${TAG}"
 
     - name: Build final artifact
       run: mvn -B clean package -DskipTests
 
     - name: Create Release
-      if: ${{ !contains(steps.version.outputs.version, '-SNAPSHOT') }}
       uses: softprops/action-gh-release@v3
       with:
-        tag_name: v${{ steps.version.outputs.version }}
-        name: Continue Beans v${{ steps.version.outputs.version }}
+        tag_name: ${{ steps.version.outputs.tag }}
+        name: ${{ steps.version.outputs.name }}
         body: |
-          ## Continue Beans AI Assistant v${{ steps.version.outputs.version }}
+          ## Continue Beans AI Assistant ${{ steps.version.outputs.version }}
 
           Install the generated `.nbm` with NetBeans Plugin Manager.
         files: |
           target/*.nbm
           target/*.jar
         draft: false
-        prerelease: false
+        prerelease: ${{ steps.version.outputs.prerelease }}
+        make_latest: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
