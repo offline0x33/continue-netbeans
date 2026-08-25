@@ -16,12 +16,24 @@ import java.util.List;
 /** Creates an explicit, ordered and verifiable task plan from the user's goal. */
 public final class TaskPlanner {
     private static final Duration TIMEOUT = Duration.ofSeconds(90);
-    private final HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(15)).build();
+    private final HttpClient client;
     private final Gson gson = new Gson();
+    private final String configuredEndpoint;
+    private final String configuredModel;
+
+    public TaskPlanner() {
+        this(HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(15)).build(), null, null);
+    }
+
+    TaskPlanner(HttpClient client, String endpoint, String model) {
+        this.client = client;
+        this.configuredEndpoint = endpoint;
+        this.configuredModel = model;
+    }
 
     public TaskPlan createPlan(String goal) throws Exception {
-        String endpoint = ContinueSettings.getApiUrl();
-        String model = ContinueSettings.getModel();
+        String endpoint = configuredEndpoint == null ? ContinueSettings.getApiUrl() : configuredEndpoint;
+        String model = configuredModel == null ? ContinueSettings.getModel() : configuredModel;
         if (endpoint == null || endpoint.isBlank() || model == null || model.isBlank()) {
             throw new IllegalStateException("Provider AI não configurado para planejamento.");
         }
@@ -30,23 +42,14 @@ public final class TaskPlanner {
         request.addProperty("model", model);
         request.addProperty("temperature", 0.1);
         JsonArray messages = new JsonArray();
-
         JsonObject system = new JsonObject();
         system.addProperty("role", "system");
-        system.addProperty("content",
-                "Você é o planejador de tarefas de um agente de desenvolvimento dentro do NetBeans.\n"
-                + "Transforme o objetivo do usuário em tarefas concretas, ordenadas e verificáveis.\n"
-                + "Responda SOMENTE JSON válido neste formato:\n"
-                + "{\"tasks\":[{\"title\":\"...\",\"instruction\":\"...\",\"completionCriteria\":\"...\",\"dependsOn\":[]}] }\n"
-                + "Regras:\n"
-                + "- pelo menos uma tarefa;\n"
-                + "- cada tarefa deve ser executável por um agente com ferramentas;\n"
-                + "- completionCriteria precisa ser observável no projeto/IDE;\n"
-                + "- crie tarefas de validação (testes/build/inspeção) antes da tarefa final quando necessário;\n"
-                + "- dependsOn referencia o índice zero-based das tarefas anteriores;\n"
-                + "- não declare o objetivo geral concluído sem uma tarefa explícita de verificação.");
+        system.addProperty("content", "Você é o planejador de tarefas de um agente de desenvolvimento dentro do NetBeans. "
+                + "Transforme o objetivo do usuário em tarefas concretas, ordenadas e verificáveis. "
+                + "Responda SOMENTE JSON válido no formato de tasks com title, instruction, completionCriteria e dependsOn. "
+                + "Cada tarefa deve ser executável e ter critério observável. "
+                + "dependsOn referencia índice zero-based e o plano precisa terminar com uma tarefa de verificação.");
         messages.add(system);
-
         JsonObject user = new JsonObject();
         user.addProperty("role", "user");
         user.addProperty("content", goal);
@@ -75,7 +78,7 @@ public final class TaskPlanner {
         return parsePlan(goal, content);
     }
 
-    private TaskPlan parsePlan(String goal, String content) {
+    TaskPlan parsePlan(String goal, String content) {
         String json = content.trim();
         int start = json.indexOf('{');
         int end = json.lastIndexOf('}');
@@ -83,7 +86,7 @@ public final class TaskPlanner {
             json = json.substring(start, end + 1);
         }
         JsonArray taskArray = JsonParser.parseString(json).getAsJsonObject().getAsJsonArray("tasks");
-        if (taskArray == null || taskArray.isEmpty()) {
+        if (taskArray == null || taskArray.size() == 0) {
             throw new IllegalStateException("Planejador não retornou tarefas.");
         }
 
@@ -100,7 +103,7 @@ public final class TaskPlanner {
                     indexes.add(dependency.getAsInt());
                 }
             }
-            tasks.add(new AgentTask(title, instruction, criteria, List.of()));
+            tasks.add(new AgentTask(title, instruction, criteria, java.util.Collections.<String>emptyList()));
             dependencyIndexes.add(indexes);
         }
 
