@@ -38,11 +38,12 @@ public final class TaskOrchestrator {
             TaskPlan plan = null;
             String planningGoal = goal;
             int replans = 0;
+            TaskExecutionContext context = new TaskExecutionContext(goal);
             try {
                 while (replans <= MAX_REPLANS) {
                     plan = planner.createPlan(planningGoal);
                     listener.onPlanCreated(plan);
-                    executePlan(plan, provider, listener);
+                    executePlan(plan, provider, listener, context);
 
                     if (plan.isComplete()) {
                         listener.onCompleted(plan);
@@ -61,7 +62,7 @@ public final class TaskOrchestrator {
 
                     replans++;
                     listener.onReplanning(plan);
-                    planningGoal = buildReplanGoal(goal, plan);
+                    planningGoal = buildReplanGoal(goal, plan, context);
                 }
                 return plan;
             } catch (Exception e) {
@@ -72,7 +73,7 @@ public final class TaskOrchestrator {
         });
     }
 
-    private void executePlan(TaskPlan plan, String provider, Listener listener) {
+    private void executePlan(TaskPlan plan, String provider, Listener listener, TaskExecutionContext context) {
         while (!plan.isComplete()) {
             AgentTask task = plan.nextRunnableTask();
             if (task == null) {
@@ -88,10 +89,11 @@ public final class TaskOrchestrator {
                 listener.onTaskStarted(task);
 
                 AIToolCallingIntegration.AIResponse response = executor
-                        .processRequestWithToolCalling(buildTaskPrompt(plan, task), provider)
+                        .processRequestWithToolCalling(buildTaskPrompt(plan, task, context), provider)
                         .join();
                 if ("error".equalsIgnoreCase(response.getType())) {
                     task.fail(response.getContent());
+                    context.recordTaskFailure(task, response.getContent());
                     listener.onTaskFailed(task);
                     continue;
                 }
@@ -99,45 +101,51 @@ public final class TaskOrchestrator {
                 task.verifying(response.getContent());
                 listener.onTaskVerifying(task);
                 AIToolCallingIntegration.AIResponse verification = executor
-                        .processRequestWithToolCalling(buildVerificationPrompt(plan, task, response.getContent()), provider)
+                        .processRequestWithToolCalling(buildVerificationPrompt(plan, task, response.getContent(), context), provider)
                         .join();
                 String verdict = verification.getContent() == null ? "" : verification.getContent().trim();
 
                 if (isDoneVerdict(verdict)) {
                     task.complete(response.getContent());
+                    context.recordTaskResult(task, response.getContent());
                     listener.onTaskCompleted(task);
                     completed = true;
                 } else {
-                    task.fail("Verificação falhou: " + truncate(verdict, 500));
+                    String failure = "Verificação falhou: " + truncate(verdict, 500);
+                    task.fail(failure);
+                    context.recordTaskFailure(task, failure);
                     listener.onTaskFailed(task);
                 }
             }
 
             if (!completed) {
-                task.block("Não foi possível concluir a tarefa após " + MAX_TASK_ATTEMPTS + " tentativas.");
+                String failure = "Não foi possível concluir a tarefa após " + MAX_TASK_ATTEMPTS + " tentativas.";
+                task.block(failure);
+                context.recordTaskFailure(task, failure);
                 return;
             }
         }
     }
 
-    private String buildReplanGoal(String originalGoal, TaskPlan failedPlan) {
-        StringBuilder context = new StringBuilder();
-        context.append(originalGoal).append("\n\n")
+    private String buildReplanGoal(String originalGoal, TaskPlan failedPlan, TaskExecutionContext context) {
+        StringBuilder prompt = new StringBuilder();
+        prompt.append(originalGoal).append("\n\n")
                 .append("CONTEXTO OBRIGATÓRIO DE REPLANEJAMENTO:\n")
                 .append("O plano anterior não foi concluído. Não repita cegamente as mesmas tarefas. "
-                        + "Analise as falhas abaixo e crie uma estratégia corrigida.\n");
+                        + "Analise as falhas abaixo e crie uma estratégia corrigida.\n")
+                .append(context.renderForPrompt()).append('\n');
         for (AgentTask task : failedPlan.getTasks()) {
             if (task.getStatus() == TaskStatus.FAILED || task.getStatus() == TaskStatus.BLOCKED) {
-                context.append("- Tarefa: ").append(task.getTitle())
+                prompt.append("- Tarefa: ").append(task.getTitle())
                         .append("; tentativas: ").append(task.getAttempts())
                         .append("; erro: ").append(task.getLastError()).append('\n');
             }
         }
-        context.append("Inclua explicitamente uma tarefa de verificação que prove a correção da falha.");
-        return context.toString();
+        prompt.append("Inclua explicitamente uma tarefa de verificação que prove a correção da falha.");
+        return prompt.toString();
     }
 
-    private String buildTaskPrompt(TaskPlan plan, AgentTask task) {
+    private String buildTaskPrompt(TaskPlan plan, AgentTask task, TaskExecutionContext context) {
         return "Você está executando uma tarefa dentro de um plano maior.\n"
                 + "NÃO declare o objetivo geral concluído.\n"
                 + "Trabalhe somente na tarefa atual e use as ferramentas disponíveis.\n\n"
@@ -145,16 +153,19 @@ public final class TaskOrchestrator {
                 + "TAREFA:\n" + task.getTitle() + "\n\n"
                 + "INSTRUÇÃO:\n" + task.getInstruction() + "\n\n"
                 + "CRITÉRIO DE CONCLUSÃO:\n" + task.getCompletionCriteria() + "\n\n"
+                + context.renderForPrompt() + "\n\n"
                 + "Execute as mudanças necessárias e informe exatamente o que foi feito.";
     }
 
-    private String buildVerificationPrompt(TaskPlan plan, AgentTask task, String executionResult) {
+    private String buildVerificationPrompt(TaskPlan plan, AgentTask task, String executionResult,
+            TaskExecutionContext context) {
         return "Você é o verificador de uma tarefa de engenharia.\n"
                 + "Inspecione o projeto com as ferramentas disponíveis quando necessário.\n"
                 + "Responda obrigatoriamente começando por DONE ou NOT_DONE.\n\n"
                 + "OBJETIVO:\n" + plan.getGoal() + "\n\n"
                 + "TAREFA:\n" + task.getTitle() + "\n\n"
                 + "CRITÉRIO:\n" + task.getCompletionCriteria() + "\n\n"
+                + "CONTEXTO ANTERIOR:\n" + context.renderForPrompt() + "\n\n"
                 + "RESULTADO INFORMADO PELO AGENTE:\n" + executionResult;
     }
 
