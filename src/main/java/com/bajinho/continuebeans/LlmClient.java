@@ -77,9 +77,9 @@ public class LlmClient {
     /**
      * Execute an explicit workspace request through the real NetBeans tool layer.
      * This is intentionally limited to requests that clearly ask the model to inspect
-     * or mutate files/project state, so ordinary chat keeps the existing streaming path.
+     * or mutate files/project state, so ordinary chat keeps the existing streaming provider path.
      */
-    private boolean shouldUseWorkspaceTools(String message) {
+    boolean shouldUseWorkspaceTools(String message) {
         if (message == null || message.isBlank()) {
             return false;
         }
