@@ -2,7 +2,7 @@
 
 AI assistant for Apache NetBeans.
 
-Continue Beans brings AI-assisted development directly into NetBeans, with local LLM support, workspace context, code generation, streaming responses, developer tools, and NetBeans language services.
+Continue Beans brings AI-assisted development directly into NetBeans, with local LLM support, workspace context, code generation, streaming responses, developer tools, and native NetBeans language services.
 
 ## Features
 
@@ -15,7 +15,7 @@ Continue Beans brings AI-assisted development directly into NetBeans, with local
 - Model discovery
 - Conversation history
 - MCP and tool integration
-- NetBeans language-service integration
+- Native NetBeans Java language services
 - Dark developer-focused interface
 - JUnit 5 and Cucumber test suite
 
@@ -28,16 +28,9 @@ Continue Beans brings AI-assisted development directly into NetBeans, with local
 
 ## Build
 
-Clone the repository:
-
 ```bash
 git clone https://github.com/offline0x33/continue-netbeans.git
 cd continue-netbeans
-```
-
-Build the plugin:
-
-```bash
 mvn clean install
 ```
 
@@ -53,13 +46,11 @@ The generated NetBeans module is available under `target/*.nbm`.
 
 Continue Beans uses a provider abstraction so AI backends can evolve independently from the NetBeans UI.
 
-LM Studio is the primary local provider and uses an OpenAI-compatible API. Other compatible providers can be integrated through the same provider layer.
+LM Studio is the primary local provider and uses an OpenAI-compatible API.
 
 ## Workspace Intelligence
 
-The assistant can use the current NetBeans workspace as development context. Workspace tools provide access to project files and directories, while the NetBeans language-service layer provides semantic information for supported languages.
-
-This allows the assistant to work with source code using both file-level context and IDE-level information such as symbols, definitions, references, and diagnostics.
+The assistant can use the current NetBeans workspace as development context. Workspace tools provide access to project files and directories, while native NetBeans language services provide semantic information for Java source code.
 
 ## Architecture
 
@@ -72,7 +63,7 @@ Continue Beans UI
    ├── Conversation
    ├── Workspace Tools
    ├── MCP Tools
-   └── Language Services
+   └── Native Language Services
            │
            ▼
        LLM Provider
@@ -84,25 +75,18 @@ The main layers are separated so the UI, AI providers, workspace tooling, and ID
 
 ## User Interface
 
-Continue Beans uses a dark, developer-oriented interface designed for long coding sessions.
+Continue Beans uses a dark, developer-oriented chat interface as its canonical NetBeans view.
 
-The chat experience includes streaming responses, code blocks, conversation history, model selection, workspace context, tool execution feedback, and developer actions.
+The current UI provides the chat surface, conversation streaming, task progress, tool/status feedback, workspace context, model controls, warnings, message actions, and workspace status.
 
-Detailed UI specifications belong in the project documentation rather than this README.
+The detailed visual contract is maintained in [`docs/UI_SPECIFICATION.md`](docs/UI_SPECIFICATION.md). Remaining visual-fidelity work is tracked separately and does not define the availability of the core chat experience.
 
 ## Testing
 
 The project uses JUnit 5, Mockito, Cucumber, and JaCoCo.
 
-Run tests with:
-
 ```bash
 mvn test
-```
-
-Run the complete verification pipeline with:
-
-```bash
 mvn verify
 ```
 
@@ -110,13 +94,11 @@ mvn verify
 
 Continue Beans is under active development.
 
-The core chat experience, local model integration, workspace context, developer tooling, and dark UI are implemented. NetBeans language-service capabilities are being expanded as part of the semantic code-intelligence layer.
+The core chat experience, workspace tooling, large-context handling, native NetBeans Java language services, and canonical Dark Theme entry point are implemented. Visual-fidelity refinements continue in the canonical `ChatPanel`.
 
 ## Documentation
 
-Additional technical documentation is maintained under `docs/`.
-
-Detailed architecture, UI specifications, implementation notes, and technical decisions should be maintained there rather than duplicated in this README.
+Additional technical documentation is maintained under [`docs/`](docs/).
 
 ## Contributing
 
