@@ -31,6 +31,14 @@ public class LmStudioProvider implements LlmProvider {
         return UrlUtils.resolveUrl(url);
     }
 
+    private String buildSystemPrompt(String mode) {
+        String base = "Você é um AI assistente avançado de programação profissional.";
+        AgentMode agentMode = mode == null || mode.isBlank()
+                ? ContinueSettings.getAgentMode()
+                : AgentMode.fromLabel(mode);
+        return base + " " + agentMode.getSystemHint();
+    }
+
     @Override
     public void stream(String context, String prompt, String model, String mode,
             Consumer<String> onChunk, Consumer<Throwable> onError, Runnable onComplete) {
@@ -51,23 +59,15 @@ public class LmStudioProvider implements LlmProvider {
         if (isChatFormat) {
             JsonArray messages = new JsonArray();
 
-            // System Prompt
             JsonObject systemMessage = new JsonObject();
             systemMessage.addProperty("role", "system");
-            String sysPrompt = "Você é um AI assistente avançado de programação profissional.";
-            if ("Code".equalsIgnoreCase(mode))
-                sysPrompt += " Foque em código limpo.";
-            else if ("Planning".equalsIgnoreCase(mode))
-                sysPrompt += " Planeje antes de codar.";
-            systemMessage.addProperty("content", sysPrompt);
+            systemMessage.addProperty("content", buildSystemPrompt(mode));
             messages.add(systemMessage);
 
-            // Add Conversation History
             for (JsonObject msg : conversationManager.getLastMessages(10)) {
                 messages.add(msg);
             }
 
-            // Current User Message
             JsonObject userMessage = new JsonObject();
             userMessage.addProperty("role", "user");
             String content = (context != null && !context.trim().isEmpty())
@@ -77,13 +77,11 @@ public class LmStudioProvider implements LlmProvider {
             messages.add(userMessage);
 
             payload.add("messages", messages);
-
-            // Update Conversation History (with automatic truncation if needed)
             conversationManager.addMessage(userMessage);
 
         } else {
             StringBuilder promptBuilder = new StringBuilder();
-            promptBuilder.append("### Instruction:\nVocê é um assistente de programação.\n\n");
+            promptBuilder.append("### Instruction:\n").append(buildSystemPrompt(mode)).append("\n\n");
             if (context != null && !context.trim().isEmpty()) {
                 promptBuilder.append("Contexto:\n```\n").append(context).append("\n```\n\n");
             }
@@ -116,8 +114,9 @@ public class LmStudioProvider implements LlmProvider {
                         if (line.startsWith("data: ") && !line.contains("[DONE]")) {
                             try {
                                 String json = line.substring(6).trim();
-                                if (json.isEmpty())
+                                if (json.isEmpty()) {
                                     return;
+                                }
 
                                 JsonObject obj = JsonParser.parseString(json).getAsJsonObject();
                                 if (obj.has("choices")) {
@@ -144,7 +143,6 @@ public class LmStudioProvider implements LlmProvider {
                         }
                     });
 
-                    // Add AI response to conversation history
                     if (isChatFormat && fullContent.length() > 0) {
                         conversationManager.addMessage("assistant", fullContent.toString());
                     }
@@ -164,7 +162,6 @@ public class LmStudioProvider implements LlmProvider {
                 });
     }
 
-    /** Unwrap CompletionException / ExecutionException to the underlying cause. */
     private static Throwable unwrap(Throwable ex) {
         Throwable current = ex;
         while (current instanceof CompletionException || current instanceof java.util.concurrent.ExecutionException) {
@@ -183,15 +180,9 @@ public class LmStudioProvider implements LlmProvider {
         payload.addProperty("temperature", ContinueSettings.getTemperature());
 
         JsonArray messages = new JsonArray();
-        String systemPrompt = "Você é um AI assistente avançado de programação.";
-        if ("Code".equalsIgnoreCase(mode))
-            systemPrompt += " Foque em código limpo.";
-        else if ("Planning".equalsIgnoreCase(mode))
-            systemPrompt += " Planeje antes de codar.";
-
         JsonObject systemMessage = new JsonObject();
         systemMessage.addProperty("role", "system");
-        systemMessage.addProperty("content", systemPrompt);
+        systemMessage.addProperty("content", buildSystemPrompt(mode));
         messages.add(systemMessage);
 
         JsonObject userMessage = new JsonObject();
@@ -228,14 +219,12 @@ public class LmStudioProvider implements LlmProvider {
         String baseUrl = ContinueSettings.getApiUrl();
         List<String> endpoints = new ArrayList<>();
 
-        // Extract base host/port
         String rootUrl;
         if (baseUrl.contains("/v1/")) {
             rootUrl = baseUrl.substring(0, baseUrl.indexOf("/v1/"));
         } else if (baseUrl.contains(":1234")) {
             rootUrl = baseUrl.substring(0, baseUrl.indexOf(":1234") + 5);
         } else {
-            // Fallback to trying to find the first slash after http://
             int thirdSlash = baseUrl.indexOf("/", 8);
             rootUrl = (thirdSlash != -1) ? baseUrl.substring(0, thirdSlash) : baseUrl;
         }
@@ -288,32 +277,26 @@ public class LmStudioProvider implements LlmProvider {
         List<String> modelos = new ArrayList<>();
         try {
             JsonObject jsonObject = JsonParser.parseString(body).getAsJsonObject();
-            // OpenAI Standard / LM Studio / local-llama
             if (jsonObject.has("data") && jsonObject.get("data").isJsonArray()) {
                 JsonArray data = jsonObject.getAsJsonArray("data");
                 for (int i = 0; i < data.size(); i++) {
                     JsonObject m = data.get(i).getAsJsonObject();
                     if (m.has("id")) {
-                        // Check if model is loaded (LM Studio specifically)
                         if (m.has("loaded_instances") && m.get("loaded_instances").isJsonArray()) {
                             JsonArray instances = m.getAsJsonArray("loaded_instances");
                             if (instances.size() > 0) {
                                 modelos.add(m.get("id").getAsString());
                             }
                         } else {
-                            // If no loaded_instances field, assume model is available (OpenAI format)
                             modelos.add(m.get("id").getAsString());
                         }
                     }
                 }
-            }
-            // LM Studio specific older format
-            else if (jsonObject.has("models") && jsonObject.get("models").isJsonArray()) {
+            } else if (jsonObject.has("models") && jsonObject.get("models").isJsonArray()) {
                 JsonArray models = jsonObject.getAsJsonArray("models");
                 for (int i = 0; i < models.size(); i++) {
                     JsonObject m = models.get(i).getAsJsonObject();
                     if (m.has("id")) {
-                        // Older formats might not have loaded_instances, so we add all
                         modelos.add(m.get("id").getAsString());
                     }
                 }
