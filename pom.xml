@@ -59,42 +59,42 @@
                     <forkedProcessTimeoutInSeconds>300</forkedProcessTimeoutInSeconds>
                 </configuration>
             </plugin>
-            <plugin><groupId="org.apache.maven.plugins"/><artifactId="maven-checkstyle-plugin</artifactId><version>3.3.0</version><configuration><configLocation>google_checks.xml</configLocation><consoleOutput>true</consoleOutput><failsOnError>false</failsOnError><linkXRef>false</linkXRef><skip>true</skip></configuration></plugin>
-            <plugin><groupId="org.apache.maven.plugins"/><artifactId>maven-pmd-plugin</artifactId><version>3.21.0</version><configuration><rulesets><ruleset>/rulesets/java/quickstart.xml</ruleset></rulesets><failOnViolation>false</failOnViolation><skip>true</skip></configuration></plugin>
-            <plugin><groupId="org.apache.maven.plugins"/><artifactId>maven-javadoc-plugin</artifactId><version>3.6.0</version><configuration><doclint>none</doclint><show>private</show><nohelp>true</nohelp></configuration><executions><execution><id>attach-javadocs</id><goals><goal>jar</goal></goals></execution></executions></plugin>
-            <plugin><groupId="org.apache.maven.plugins"/><artifactId>maven-source-plugin</artifactId><version>3.3.0</version><executions><execution><id>attach-sources</id><goals><goal>jar-no-fork</goal></goals></execution></executions></plugin>
+            <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-checkstyle-plugin</artifactId><version>3.3.0</version><configuration><configLocation>google_checks.xml</configLocation><consoleOutput>true</consoleOutput><failsOnError>false</failsOnError><linkXRef>false</linkXRef><skip>true</skip></configuration></plugin>
+            <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-pmd-plugin</artifactId><version>3.21.0</version><configuration><rulesets><ruleset>/rulesets/java/quickstart.xml</ruleset></rulesets><failOnViolation>false</failOnViolation><skip>true</skip></configuration></plugin>
+            <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-javadoc-plugin</artifactId><version>3.6.0</version><configuration><doclint>none</doclint><show>private</show><nohelp>true</nohelp></configuration><executions><execution><id>attach-javadocs</id><goals><goal>jar</goal></goals></execution></executions></plugin>
+            <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-source-plugin</artifactId><version>3.3.0</version><executions><execution><id>attach-sources</id><goals><goal>jar-no-fork</goal></goals></execution></executions></plugin>
         </plugins>
     </build>
     <dependencies>
-        <dependency><groupId="org.netbeans.api"/><artifactId>org-netbeans-api-annotations-common</artifactId><version>${netbeans.version}</version></dependency>
-        <dependency><groupId="org.netbeans.api"/><artifactId>org-openide-windows</artifactId><version>${netbeans.version}</version></dependency>
-        <dependency><groupId="org.netbeans.api"/><artifactId>org-openide-util</artifactId><version>${netbeans.version}</version></dependency>
-        <dependency><groupId="org.netbeans.api"/><artifactId>org-openide-util-ui</artifactId><version>${netbeans.version}</version></dependency>
-        <dependency><groupId="org.netbeans.api"/><artifactId>org-openide-awt</artifactId><version>${netbeans.version}</version></dependency>
-        <dependency><groupId="org.netbeans.api"/><artifactId>org-netbeans-modules-editor</artifactId><version>${netbeans.version}</version></dependency>
-        <dependency><groupId="org.netbeans.api"/><artifactId>org-netbeans-modules-editor-lib2</artifactId><version>${netbeans.version}</version></dependency>
-        <dependency><groupId="org.netbeans.api"/><artifactId>org-netbeans-modules-projectapi</artifactId><version>${netbeans.version}</version></dependency>
-        <dependency><groupId="org.netbeans.api"/><artifactId>org-netbeans-modules-projectuiapi</artifactId><version>${netbeans.version}</version></dependency>
-        <dependency><groupId="org.netbeans.api"/><artifactId>org-netbeans-modules-projectuiapi-base</artifactId><version>${netbeans.version}</version></dependency>
-        <dependency><groupId="org.netbeans.api"/><artifactId>org-netbeans-modules-java-source</artifactId><version>${netbeans.version}</version></dependency>
-        <dependency><groupId="org.netbeans.api"/><artifactId>org-netbeans-modules-java-source-base</artifactId><version>${netbeans.version}</version></dependency>
-        <dependency><groupId="org.netbeans.api"/><artifactId>org-netbeans-modules-parsing-api</artifactId><version>${netbeans.version}</version></dependency>
-        <dependency><groupId="com.fifesoft"/><artifactId>rsyntaxtextarea</artifactId><version>3.5.3</version></dependency>
-        <dependency><groupId="com.google.code.gson"/><artifactId>gson</artifactId><version>2.10.1</version></dependency>
-        <dependency><groupId="org.netbeans.api"/><artifactId>org-netbeans-modules-options-api</artifactId><version>${netbeans.version}</version></dependency>
-        <dependency><groupId="org.netbeans.api"/><artifactId>org-openide-util-lookup</artifactId><version>${netbeans.version}</version></dependency>
-        <dependency><groupId="org.netbeans.api"/><artifactId>org-openide-dialogs</artifactId><version>${netbeans.version}</version></dependency>
-        <dependency><groupId="org.netbeans.api"/><artifactId>org-openide-filesystems</artifactId><version>${netbeans.version}</version></dependency>
-        <dependency><groupId="org.netbeans.api"/><artifactId>org-openide-modules</artifactId><version>${netbeans.version}</version></dependency>
-        <dependency><groupId="org.netbeans.api"/><artifactId>org-openide-nodes</artifactId><version>${netbeans.version}</version></dependency>
-        <dependency><groupId="io.cucumber"/><artifactId>cucumber-java</artifactId><version>7.14.0</version><scope>test</scope></dependency>
-        <dependency><groupId="io.cucumber"/><artifactId>cucumber-junit-platform-engine</artifactId><version>7.14.0</version><scope>test</scope></dependency>
-        <dependency><groupId="org.junit.platform"/><artifactId>junit-platform-suite</artifactId><version>1.10.0</version><scope>test</scope></dependency>
-        <dependency><groupId="org.junit.jupiter"/><artifactId>junit-jupiter-api</artifactId><version>5.10.0</version><scope>test</scope></dependency>
-        <dependency><groupId="org.junit.jupiter"/><artifactId>junit-jupiter-engine</artifactId><version>5.10.0</version><scope>test</scope></dependency>
-        <dependency><groupId="org.junit.jupiter"/><artifactId>junit-jupiter-params</artifactId><version>5.10.0</version><scope>test</scope></dependency>
-        <dependency><groupId="org.mockito"/><artifactId>mockito-core</artifactId><version>5.12.0</version><scope>test</scope></dependency>
-        <dependency><groupId="net.bytebuddy"/><artifactId>byte-buddy</artifactId><version>1.14.10</version><scope>test</scope></dependency>
-        <dependency><groupId="net.bytebuddy"/><artifactId>byte-buddy-agent</artifactId><version>1.14.10</version><scope>test</scope></dependency>
+        <dependency><groupId>org.netbeans.api</groupId><artifactId>org-netbeans-api-annotations-common</artifactId><version>${netbeans.version}</version></dependency>
+        <dependency><groupId>org.netbeans.api</groupId><artifactId>org-openide-windows</artifactId><version>${netbeans.version}</version></dependency>
+        <dependency><groupId>org.netbeans.api</groupId><artifactId>org-openide-util</artifactId><version>${netbeans.version}</version></dependency>
+        <dependency><groupId>org.netbeans.api</groupId><artifactId>org-openide-util-ui</artifactId><version>${netbeans.version}</version></dependency>
+        <dependency><groupId>org.netbeans.api</groupId><artifactId>org-openide-awt</artifactId><version>${netbeans.version}</version></dependency>
+        <dependency><groupId>org.netbeans.api</groupId><artifactId>org-netbeans-modules-editor</artifactId><version>${netbeans.version}</version></dependency>
+        <dependency><groupId>org.netbeans.api</groupId><artifactId>org-netbeans-modules-editor-lib2</artifactId><version>${netbeans.version}</version></dependency>
+        <dependency><groupId>org.netbeans.api</groupId><artifactId>org-netbeans-modules-projectapi</artifactId><version>${netbeans.version}</version></dependency>
+        <dependency><groupId>org.netbeans.api</groupId><artifactId>org-netbeans-modules-projectuiapi</artifactId><version>${netbeans.version}</version></dependency>
+        <dependency><groupId>org.netbeans.api</groupId><artifactId>org-netbeans-modules-projectuiapi-base</artifactId><version>${netbeans.version}</version></dependency>
+        <dependency><groupId>org.netbeans.api</groupId><artifactId>org-netbeans-modules-java-source</artifactId><version>${netbeans.version}</version></dependency>
+        <dependency><groupId>org.netbeans.api</groupId><artifactId>org-netbeans-modules-java-source-base</artifactId><version>${netbeans.version}</version></dependency>
+        <dependency><groupId>org.netbeans.api</groupId><artifactId>org-netbeans-modules-parsing-api</artifactId><version>${netbeans.version}</version></dependency>
+        <dependency><groupId>com.fifesoft</groupId><artifactId>rsyntaxtextarea</artifactId><version>3.5.3</version></dependency>
+        <dependency><groupId>com.google.code.gson</groupId><artifactId>gson</artifactId><version>2.10.1</version></dependency>
+        <dependency><groupId>org.netbeans.api</groupId><artifactId>org-netbeans-modules-options-api</artifactId><version>${netbeans.version}</version></dependency>
+        <dependency><groupId>org.netbeans.api</groupId><artifactId>org-openide-util-lookup</artifactId><version>${netbeans.version}</version></dependency>
+        <dependency><groupId>org.netbeans.api</groupId><artifactId>org-openide-dialogs</artifactId><version>${netbeans.version}</version></dependency>
+        <dependency><groupId>org.netbeans.api</groupId><artifactId>org-openide-filesystems</artifactId><version>${netbeans.version}</version></dependency>
+        <dependency><groupId>org.netbeans.api</groupId><artifactId>org-openide-modules</artifactId><version>${netbeans.version}</version></dependency>
+        <dependency><groupId>org.netbeans.api</groupId><artifactId>org-openide-nodes</artifactId><version>${netbeans.version}</version></dependency>
+        <dependency><groupId>io.cucumber</groupId><artifactId>cucumber-java</artifactId><version>7.14.0</version><scope>test</scope></dependency>
+        <dependency><groupId>io.cucumber</groupId><artifactId>cucumber-junit-platform-engine</artifactId><version>7.14.0</version><scope>test</scope></dependency>
+        <dependency><groupId>org.junit.platform</groupId><artifactId>junit-platform-suite</artifactId><version>1.10.0</version><scope>test</scope></dependency>
+        <dependency><groupId>org.junit.jupiter</groupId><artifactId>junit-jupiter-api</artifactId><version>5.10.0</version><scope>test</scope></dependency>
+        <dependency><groupId>org.junit.jupiter</groupId><artifactId>junit-jupiter-engine</artifactId><version>5.10.0</version><scope>test</scope></dependency>
+        <dependency><groupId>org.junit.jupiter</groupId><artifactId>junit-jupiter-params</artifactId><version>5.10.0</version><scope>test</scope></dependency>
+        <dependency><groupId>org.mockito</groupId><artifactId>mockito-core</artifactId><version>5.12.0</version><scope>test</scope></dependency>
+        <dependency><groupId>net.bytebuddy</groupId><artifactId>byte-buddy</artifactId><version>1.14.10</version><scope>test</scope></dependency>
+        <dependency><groupId>net.bytebuddy</groupId><artifactId>byte-buddy-agent</artifactId><version>1.14.10</version><scope>test</scope></dependency>
     </dependencies>
 </project>
