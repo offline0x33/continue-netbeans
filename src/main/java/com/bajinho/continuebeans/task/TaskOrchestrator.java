@@ -67,13 +67,14 @@ public final class TaskOrchestrator {
             int replans = 0;
             try {
                 refreshProjectContext();
-                if (intentClassifier != null && !intentClassifier.shouldUseTaskOrchestrator(goal)) {
-                    return executeConversation(goal, provider, listener);
-                }
 
                 if (requiresProjectContext(goal) && currentProjectRoot().isEmpty()) {
                     return failWithoutExecution(goal, listener,
                             "Nenhum projeto aberto no NetBeans. Abra um projeto antes de pedir uma análise do projeto.");
+                }
+
+                if (intentClassifier != null && !intentClassifier.shouldUseTaskOrchestrator(goal)) {
+                    return executeConversation(goal, provider, listener);
                 }
 
                 while (replans <= MAX_REPLANS) {
