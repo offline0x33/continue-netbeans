@@ -49,10 +49,6 @@ public class AIToolCallingIntegration {
         this.workspaceRoot = workspaceRoot;
     }
 
-    /**
-     * Update the workspace root used to resolve relative file and directory tool arguments.
-     * Absolute paths are never rewritten.
-     */
     public void setWorkspaceRoot(String workspaceRoot) {
         this.workspaceRoot = workspaceRoot;
     }
@@ -61,11 +57,32 @@ public class AIToolCallingIntegration {
         if (userMessage == null || userMessage.isBlank()) {
             return CompletableFuture.completedFuture(AIResponse.error("Mensagem do usuário é obrigatória."));
         }
+        JsonArray messages = new JsonArray();
+        messages.add(message("user", userMessage));
+        return processRequestWithToolCalling(messages, aiProvider);
+    }
+
+    /**
+     * Processes one user-facing request using the supplied prior conversation history.
+     * Tool-call assistant/tool messages are kept local to this request and are not persisted
+     * into the caller's history unless the caller explicitly chooses to store the final answer.
+     */
+    public CompletableFuture<AIResponse> processRequestWithToolCalling(JsonArray conversation, String aiProvider) {
+        if (conversation == null || conversation.size() == 0) {
+            return CompletableFuture.completedFuture(AIResponse.error("Histórico de conversa é obrigatório."));
+        }
 
         return CompletableFuture.supplyAsync(() -> {
             try {
                 List<JsonObject> messages = new ArrayList<>();
-                messages.add(message("user", userMessage));
+                for (JsonElement element : conversation) {
+                    if (element != null && element.isJsonObject()) {
+                        messages.add(element.getAsJsonObject().deepCopy());
+                    }
+                }
+                if (messages.isEmpty()) {
+                    return AIResponse.error("Histórico de conversa inválido.");
+                }
 
                 for (int round = 1; round <= MAX_TOOL_ROUNDS; round++) {
                     JsonObject response = callProvider(messages);
@@ -78,7 +95,7 @@ public class AIToolCallingIntegration {
                         return AIResponse.text(readContent(choiceMessage));
                     }
 
-                    messages.add(choiceMessage);
+                    messages.add(choiceMessage.deepCopy());
                     for (JsonElement toolCallElement : toolCalls) {
                         JsonObject toolCall = toolCallElement.getAsJsonObject();
                         JsonObject function = toolCall.getAsJsonObject("function");
