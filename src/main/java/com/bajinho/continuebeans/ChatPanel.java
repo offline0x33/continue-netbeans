@@ -70,6 +70,7 @@ public class ChatPanel extends JPanel {
 
         setLayout(new BorderLayout());
         setBackground(BG);
+        setBorder(BorderFactory.createEmptyBorder());
         add(createTopBar(), BorderLayout.NORTH);
 
         conversationPanel = new JPanel();
