@@ -10,10 +10,7 @@ import java.time.Duration;
 import java.util.regex.Pattern;
 
 public class LlmClient {
-
     private static final Pattern ABSOLUTE_PATH_PATTERN = Pattern.compile("(?:^|\\s)(?:/home/|/workspace/|/tmp/|/opt/|/var/|[A-Za-z]:\\\\)");
-
-    /** Action verbs that indicate real engineering work — not passive nouns like "projeto". */
     private static final String TASK_ACTION_WORDS = String.join("|",
             "crie", "criar", "create", "implement", "implemente", "implementar", "adicione", "adicionar",
             "add", "remova", "remover", "remove", "edite", "editar", "edit", "altere", "alterar", "modify",
@@ -23,43 +20,31 @@ public class LlmClient {
             "rodar", "configure", "configurar", "deploy", "commit", "git", "instale", "instalar", "install",
             "gere", "gerar", "generate", "escreva", "escrever", "write", "apague", "apagar", "delete",
             "renomeie", "renomear", "rename", "mova", "mover", "move");
-
     private static final Pattern INFORMATIONAL_PATTERN = Pattern.compile(
             "(?i)^\\s*(olá|ola|oi|hey|hi|hello|bom dia|boa tarde|boa noite|"
                     + "como (você|voce) está|como vai|"
                     + "(me )?(fale|diga|conte|explique|descreva|mostre)( (sobre|desse|deste|do|da|o|a))?|"
                     + "o que (é|e|são|sao)|quem (é|e)|para que serve|"
                     + "(what|who|how|why|when|where)\\b).*$");
-
     private final HttpClient client;
     private final Gson gson;
     private final AIToolCallingIntegration toolCallingIntegration;
     private LlmProvider provider;
-
     public LlmClient() {
-        this.client = HttpClient.newBuilder()
-                .version(HttpClient.Version.HTTP_1_1)
-                .connectTimeout(Duration.ofSeconds(20))
-                .proxy(java.net.ProxySelector.of(null))
-                .build();
+        this.client = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1)
+                .connectTimeout(Duration.ofSeconds(20)).proxy(java.net.ProxySelector.of(null)).build();
         this.gson = new Gson();
         this.toolCallingIntegration = new AIToolCallingIntegration();
         this.provider = new LmStudioProvider(client, gson);
     }
-
-    public String resolveUrl(String url) {
-        return UrlUtils.resolveUrl(url);
-    }
-
+    public String resolveUrl(String url) { return UrlUtils.resolveUrl(url); }
     public void perguntarIAStreaming(String contextoCodigo, String perguntaUsuario, String model, String mode,
             Consumer<String> onChunk, Consumer<Throwable> onError, Runnable onComplete) {
-
         String selectedModel = model != null ? model : ContinueSettings.getModel();
         if (selectedModel == null || selectedModel.trim().isEmpty()) {
             onError.accept(new Exception("Modelo não selecionado."));
             return;
         }
-
         if (shouldUseWorkspaceTools(perguntaUsuario)) {
             toolCallingIntegration.setWorkspaceRoot(EditorUtils.getCurrentProjectDirectory());
             toolCallingIntegration.processRequestWithToolCalling(perguntaUsuario, "lmstudio")
@@ -71,127 +56,70 @@ public class LlmClient {
                         onChunk.accept(response.getContent());
                         onComplete.run();
                     })
-                    .exceptionally(error -> {
-                        Throwable cause = error.getCause() != null ? error.getCause() : error;
-                        onError.accept(cause);
-                        return null;
-                    });
+                    .exceptionally(error -> { Throwable cause = error.getCause() != null ? error.getCause() : error; onError.accept(cause); return null; });
             return;
         }
-
+        if (ContinueSettings.getChatTransportMode() == ChatTransportMode.API) {
+            provider.ask(contextoCodigo, perguntaUsuario, selectedModel, mode)
+                    .thenAccept(response -> { onChunk.accept(response); onComplete.run(); })
+                    .exceptionally(error -> { Throwable cause = error.getCause() != null ? error.getCause() : error; onError.accept(cause); return null; });
+            return;
+        }
         provider.stream(contextoCodigo, perguntaUsuario, selectedModel, mode, onChunk, onError, onComplete);
     }
-
-    public CompletableFuture<String> perguntarIAAsync(String contextoCodigo, String perguntaUsuario, String model,
-            String mode) {
+    public CompletableFuture<String> perguntarIAAsync(String contextoCodigo, String perguntaUsuario, String model, String mode) {
         String selectedModel = model != null ? model : ContinueSettings.getModel();
         if (shouldUseWorkspaceTools(perguntaUsuario)) {
             toolCallingIntegration.setWorkspaceRoot(EditorUtils.getCurrentProjectDirectory());
             return toolCallingIntegration.processRequestWithToolCalling(perguntaUsuario, "lmstudio")
                     .thenApply(AIToolCallingIntegration.AIResponse::getContent);
         }
+        if (ContinueSettings.getChatTransportMode() == ChatTransportMode.STREAM) {
+            CompletableFuture<String> response = new CompletableFuture<>();
+            StringBuilder content = new StringBuilder();
+            provider.stream(contextoCodigo, perguntaUsuario, selectedModel, mode, content::append,
+                    response::completeExceptionally, () -> response.complete(content.toString()));
+            return response;
+        }
         return provider.ask(contextoCodigo, perguntaUsuario, selectedModel, mode);
     }
-
-    /**
-     * Returns true only when the request clearly describes engineering/workspace work
-     * that should go through the task orchestrator.
-     * Greetings and informational questions stay on the conversational path.
-     */
     public boolean shouldUseTaskOrchestrator(String message) {
-        if (message == null || message.isBlank()) {
-            return false;
-        }
+        if (message == null || message.isBlank()) return false;
         String normalized = message.toLowerCase(java.util.Locale.ROOT).trim();
-
-        if (isInformationalOrGreeting(normalized)) {
-            return false;
-        }
-
-        if (normalized.contains("@file:") || normalized.contains("@codebase")) {
-            return true;
-        }
-        if (ABSOLUTE_PATH_PATTERN.matcher(message).find()) {
-            return true;
-        }
-
+        if (isInformationalOrGreeting(normalized)) return false;
+        if (normalized.contains("@file:") || normalized.contains("@codebase")) return true;
+        if (ABSOLUTE_PATH_PATTERN.matcher(message).find()) return true;
         String compact = normalized.replaceAll("[^\\p{L}\\p{N}_-]+", " ").trim();
-        if (compact.isEmpty()) {
-            return false;
-        }
-        for (String word : compact.split("\\s+")) {
-            if (word.matches(TASK_ACTION_WORDS)) {
-                return true;
-            }
-        }
+        if (compact.isEmpty()) return false;
+        for (String word : compact.split("\\s+")) if (word.matches(TASK_ACTION_WORDS)) return true;
         return false;
     }
-
     private boolean isInformationalOrGreeting(String normalized) {
-        if (INFORMATIONAL_PATTERN.matcher(normalized).matches()) {
-            return true;
-        }
-        // Short pure-Q&A about the project without an engineering verb stays conversational.
-        if (normalized.matches(".*\\b(projeto|project|workspace|código|codigo|code)\\b.*")
+        if (INFORMATIONAL_PATTERN.matcher(normalized).matches()) return true;
+        return normalized.matches(".*\\b(projeto|project|workspace|código|codigo|code)\\b.*")
                 && !hasActionVerb(normalized)
-                && normalized.matches(".*\\b(fale|diga|conte|explique|descreva|mostre|sobre|o que|qual|quais)\\b.*")) {
-            return true;
-        }
-        return false;
+                && normalized.matches(".*\\b(fale|diga|conte|explique|descreva|mostre|sobre|o que|qual|quais)\\b.*");
     }
-
     private boolean hasActionVerb(String normalized) {
         String compact = normalized.replaceAll("[^\\p{L}\\p{N}_-]+", " ").trim();
-        for (String word : compact.split("\\s+")) {
-            if (word.matches(TASK_ACTION_WORDS)) {
-                return true;
-            }
-        }
+        for (String word : compact.split("\\s+")) if (word.matches(TASK_ACTION_WORDS)) return true;
         return false;
     }
-
     boolean shouldUseWorkspaceTools(String message) {
-        if (message == null || message.isBlank()) {
-            return false;
-        }
-
+        if (message == null || message.isBlank()) return false;
         String normalized = message.toLowerCase(java.util.Locale.ROOT);
-        if (normalized.contains("@file:") || normalized.contains("@codebase")) {
-            return true;
-        }
-
+        if (normalized.contains("@file:") || normalized.contains("@codebase")) return true;
         if (ABSOLUTE_PATH_PATTERN.matcher(message).find()) {
-            return normalized.contains("leia")
-                    || normalized.contains("ler")
-                    || normalized.contains("read")
-                    || normalized.contains("liste")
-                    || normalized.contains("listar")
-                    || normalized.contains("list")
-                    || normalized.contains("abra")
-                    || normalized.contains("open")
-                    || normalized.contains("analise")
-                    || normalized.contains("analisar")
-                    || normalized.contains("analyse")
-                    || normalized.contains("edite")
-                    || normalized.contains("editar")
-                    || normalized.contains("alter")
-                    || normalized.contains("corrija")
-                    || normalized.contains("corrigir")
-                    || normalized.contains("build")
-                    || normalized.contains("compile")
-                    || normalized.contains("execut")
-                    || normalized.contains("crie")
-                    || normalized.contains("criar");
+            return normalized.contains("leia") || normalized.contains("ler") || normalized.contains("read")
+                    || normalized.contains("liste") || normalized.contains("listar") || normalized.contains("list")
+                    || normalized.contains("abra") || normalized.contains("open") || normalized.contains("analise")
+                    || normalized.contains("analisar") || normalized.contains("analyse") || normalized.contains("edite")
+                    || normalized.contains("editar") || normalized.contains("alter") || normalized.contains("corrija")
+                    || normalized.contains("corrigir") || normalized.contains("build") || normalized.contains("compile")
+                    || normalized.contains("execut") || normalized.contains("crie") || normalized.contains("criar");
         }
-
         return false;
     }
-
-    public CompletableFuture<List<String>> getModelosDisponiveisAsync() {
-        return provider.listModels();
-    }
-
-    public CompletableFuture<Boolean> loadModel(String modelId) {
-        return provider.loadModel(modelId);
-    }
+    public CompletableFuture<List<String>> getModelosDisponiveisAsync() { return provider.listModels(); }
+    public CompletableFuture<Boolean> loadModel(String modelId) { return provider.loadModel(modelId); }
 }

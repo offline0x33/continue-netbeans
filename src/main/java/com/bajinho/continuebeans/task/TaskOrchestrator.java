@@ -1,12 +1,14 @@
 package com.bajinho.continuebeans.task;
 
 import com.bajinho.continuebeans.ConversationManager;
+import com.bajinho.continuebeans.ContinueSettings;
 import com.bajinho.continuebeans.LlmClient;
 import com.bajinho.continuebeans.ai.AIToolCallingIntegration;
 import java.util.Collections;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 
 /** Executes user goals as explicit tasks and refuses to finish before the plan is complete. */
 public final class TaskOrchestrator {
@@ -19,6 +21,9 @@ public final class TaskOrchestrator {
         void onReplanning(TaskPlan failedPlan);
         void onCompleted(TaskPlan plan);
         void onFailed(String message, TaskPlan plan);
+
+        default void onConversationChunk(String chunk) {
+        }
     }
 
     private static final int MAX_TASK_ATTEMPTS = 3;
@@ -37,7 +42,6 @@ public final class TaskOrchestrator {
         this(new TaskPlanner(), new AIToolCallingIntegration(), new LlmClient(), new NetBeansProjectContext());
     }
 
-    /** Explicit task-orchestration constructor kept deterministic for callers and tests. */
     public TaskOrchestrator(TaskPlanner planner, AIToolCallingIntegration executor) {
         this(planner, executor, null, null);
     }
@@ -71,13 +75,10 @@ public final class TaskOrchestrator {
             try {
                 refreshProjectContext();
 
-                // Project requirement is validated before intent routing so missing context
-                // fails fast (BLOCKED) without calling the classifier or burning retries.
                 if (requiresProjectContext(goal) && currentProjectRoot().isEmpty()) {
                     return failWithoutExecution(goal, listener, NO_PROJECT_MESSAGE);
                 }
 
-                // Conversational / informational path — never enter task/replan loops.
                 if (intentClassifier != null && !intentClassifier.shouldUseTaskOrchestrator(goal)) {
                     return executeConversation(goal, provider, listener);
                 }
@@ -97,7 +98,6 @@ public final class TaskOrchestrator {
                         return plan;
                     }
 
-                    // Missing project context is not recoverable by replanning.
                     if (isMissingProjectFailure(plan)
                             || (currentProjectRoot().isEmpty() && requiresProjectContext(goal))) {
                         listener.onFailed(NO_PROJECT_MESSAGE, plan);
@@ -201,24 +201,52 @@ public final class TaskOrchestrator {
         listener.onTaskStarted(responseTask);
         conversationManager.addMessage("user", message);
 
-        AIToolCallingIntegration.AIResponse response = executor
-                .processRequestWithToolCalling(conversationManager.getMessagesArray(), provider)
-                .join();
-        if ("error".equalsIgnoreCase(response.getType())) {
-            String error = response.getContent() == null || response.getContent().isBlank()
-                    ? "Falha ao gerar resposta conversacional."
-                    : response.getContent();
+        if (intentClassifier == null) {
+            String error = "Cliente LLM não configurado para conversação.";
             responseTask.fail(error);
             listener.onTaskFailed(responseTask);
             listener.onFailed(error, plan);
             return plan;
         }
 
-        String content = response.getContent() == null || response.getContent().isBlank()
-                ? "Não consegui gerar uma resposta neste momento."
-                : response.getContent();
-        conversationManager.addMessage("assistant", content);
-        responseTask.complete(content);
+        StringBuilder responseContent = new StringBuilder();
+        CompletableFuture<Void> responseFuture = new CompletableFuture<>();
+        intentClassifier.perguntarIAStreaming(
+                "",
+                message,
+                ContinueSettings.getModel(),
+                "",
+                chunk -> {
+                    if (chunk != null && !chunk.isEmpty()) {
+                        responseContent.append(chunk);
+                        listener.onConversationChunk(chunk);
+                    }
+                },
+                responseFuture::completeExceptionally,
+                () -> responseFuture.complete(null));
+
+        try {
+            responseFuture.join();
+        } catch (CompletionException e) {
+            Throwable cause = e.getCause() == null ? e : e.getCause();
+            String error = cause.getMessage() == null ? cause.getClass().getSimpleName() : cause.getMessage();
+            responseTask.fail(error);
+            listener.onTaskFailed(responseTask);
+            listener.onFailed(error, plan);
+            return plan;
+        }
+
+        String response = responseContent.toString();
+        if (response.isBlank()) {
+            String error = "O modelo não retornou conteúdo.";
+            responseTask.fail(error);
+            listener.onTaskFailed(responseTask);
+            listener.onFailed(error, plan);
+            return plan;
+        }
+
+        conversationManager.addMessage("assistant", response);
+        responseTask.complete(response);
         listener.onTaskCompleted(responseTask);
         listener.onCompleted(plan);
         return plan;
@@ -248,7 +276,6 @@ public final class TaskOrchestrator {
                             : response.getContent();
                     task.fail(error);
                     listener.onTaskFailed(task);
-                    // Hard failures (missing project / config) should not burn all retries silently.
                     if (isHardFailure(error)) {
                         task.block(error);
                         return;

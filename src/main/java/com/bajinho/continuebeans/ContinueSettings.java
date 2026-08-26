@@ -9,6 +9,7 @@ public class ContinueSettings {
     private static final String PREF_MODEL = "model";
     private static final String PREF_TEMPERATURE = "temperature";
     private static final String PREF_AGENT_MODE = "agentMode";
+    private static final String PREF_CHAT_TRANSPORT_MODE = "chatTransportMode";
 
     private static final String DEFAULT_API_URL = "http://127.0.0.1:1234/v1/chat/completions";
     private static final String DEFAULT_MODEL = "";
@@ -54,5 +55,19 @@ public class ContinueSettings {
     public static void setAgentMode(AgentMode mode) {
         AgentMode selected = mode == null ? AgentMode.defaultMode() : mode;
         getPreferences().put(PREF_AGENT_MODE, selected.name());
+    }
+
+    public static ChatTransportMode getChatTransportMode() {
+        String value = getPreferences().get(PREF_CHAT_TRANSPORT_MODE, ChatTransportMode.defaultMode().name());
+        try {
+            return ChatTransportMode.valueOf(value);
+        } catch (IllegalArgumentException ignored) {
+            return ChatTransportMode.defaultMode();
+        }
+    }
+
+    public static void setChatTransportMode(ChatTransportMode mode) {
+        ChatTransportMode selected = mode == null ? ChatTransportMode.defaultMode() : mode;
+        getPreferences().put(PREF_CHAT_TRANSPORT_MODE, selected.name());
     }
 }
