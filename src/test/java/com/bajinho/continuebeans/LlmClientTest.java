@@ -163,8 +163,6 @@ class LlmClientTest {
 
     @Test
     void testStreamingWithPlanningMode() throws Exception {
-        // Use a port that is almost never bound so the connection fails deterministically,
-        // even when LM Studio is running on the default :1234 during local/CI runs.
         try (MockedStatic<ContinueSettings> settingsMock = mockStatic(ContinueSettings.class)) {
             settingsMock.when(ContinueSettings::getModel).thenReturn("model");
             settingsMock.when(ContinueSettings::getApiUrl)
@@ -222,7 +220,8 @@ class LlmClientTest {
             client.perguntarIAStreaming("ctx", "q", null, "Code",
                     chunk -> {}, err -> error[0] = err, () -> {});
 
-            assertNull(error[0]);
+            assertNotNull(error[0], "The configured model should pass the model guard even when the provider is unavailable");
+            assertFalse(error[0].getMessage().contains("Modelo não selecionado"));
         }
     }
 

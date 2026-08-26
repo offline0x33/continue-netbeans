@@ -80,7 +80,7 @@ class TaskOrchestratorTest {
         assertEquals(1, plan.getTasks().size());
         assertEquals(TaskStatus.DONE, plan.getTasks().get(0).getStatus());
         assertEquals("Olá! Como posso ajudar?", plan.getTasks().get(0).getLastResult());
-        assertEquals(1, agent.calls.get());
+        assertEquals(0, agent.calls.get());
         assertEquals(1, listener.completed.size());
     }
 

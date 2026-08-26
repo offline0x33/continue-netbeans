@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.bajinho.continuebeans.ui.ChatTransportSelector;
 import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.Container;
@@ -31,17 +32,21 @@ class ContinueTopComponentTest {
             assertInstanceOf(BorderLayout.class, topComponent.getLayout());
             ChatPanel chatPanel = findComponent(topComponent, ChatPanel.class);
             assertNotNull(chatPanel, "TopComponent must contain the canonical ChatPanel");
+            assertNotNull(findComponent(topComponent, ChatTransportSelector.class),
+                    "TopComponent must contain the response transport selector");
         });
     }
 
     @Test
-    void usesChatPanelAsOnlyCentralContent() throws Exception {
+    void usesChatPanelAsCentralContentWithTransportSelector() throws Exception {
         onEdt(() -> {
             BorderLayout layout = (BorderLayout) topComponent.getLayout();
             Component center = layout.getLayoutComponent(BorderLayout.CENTER);
+            Component north = layout.getLayoutComponent(BorderLayout.NORTH);
             assertInstanceOf(ChatPanel.class, center);
-            assertEquals(1, topComponent.getComponentCount(),
-                    "TopComponent should not maintain a second legacy chat implementation");
+            assertInstanceOf(ChatTransportSelector.class, north);
+            assertEquals(2, topComponent.getComponentCount(),
+                    "TopComponent should expose one transport selector and the canonical chat panel");
         });
     }
 
