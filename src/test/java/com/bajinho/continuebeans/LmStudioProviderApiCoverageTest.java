@@ -133,7 +133,7 @@ class LmStudioProviderApiCoverageTest {
         startServer(exchange -> send(exchange, 500, "error"));
         ContinueSettings.setApiUrl(serverUrl() + "/v1/chat/completions");
         new LmStudioProvider(HttpClient.newHttpClient(), new Gson()).stream("", "q", "m", "Code",
-                chunk -> { }, error::set, done::countDown);
+                chunk -> { }, value -> { error.set(value); done.countDown(); }, done::countDown);
         assertTrue(done.await(2, TimeUnit.SECONDS));
         assertFalse(error.get() == null);
 
