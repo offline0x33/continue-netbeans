@@ -3,7 +3,6 @@ package com.bajinho.continuebeans.task;
 import com.bajinho.continuebeans.LlmClient;
 import com.bajinho.continuebeans.ai.AIToolCallingIntegration;
 import java.util.Collections;
-import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -32,8 +31,12 @@ public final class TaskOrchestrator {
         this(new TaskPlanner(), new AIToolCallingIntegration(), new LlmClient());
     }
 
+    /**
+     * Explicit task-orchestration constructor kept deterministic for callers and tests that
+     * already supply a planner/executor. Intent routing belongs to the canonical UI flow.
+     */
     public TaskOrchestrator(TaskPlanner planner, AIToolCallingIntegration executor) {
-        this(planner, executor, new LlmClient());
+        this(planner, executor, null);
     }
 
     TaskOrchestrator(TaskPlanner planner, AIToolCallingIntegration executor, LlmClient intentClassifier) {
@@ -48,7 +51,7 @@ public final class TaskOrchestrator {
             String planningGoal = goal;
             int replans = 0;
             try {
-                if (!intentClassifier.shouldUseTaskOrchestrator(goal)) {
+                if (intentClassifier != null && !intentClassifier.shouldUseTaskOrchestrator(goal)) {
                     return executeConversation(goal, provider, listener);
                 }
 
