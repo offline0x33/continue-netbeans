@@ -4,7 +4,6 @@ import org.junit.jupiter.api.Test;
 
 import javax.swing.JButton;
 import javax.swing.JLabel;
-import javax.swing.JPanel;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Container;
@@ -12,12 +11,11 @@ import java.awt.Container;
 import static org.junit.jupiter.api.Assertions.*;
 
 class ChatPanelDarkThemeTest {
-
     @Test
     void darkThemeUsesCanonicalTokens() {
         ChatPanel panel = new ChatPanel();
         assertEquals(new Color(0x12, 0x12, 0x14), panel.getBackground());
-        assertTrue(findButtonByTooltip(panel, "Refresh models") != null);
+        assertNotNull(findButtonByTooltip(panel, "Refresh models"));
     }
 
     @Test
@@ -40,9 +38,7 @@ class ChatPanelDarkThemeTest {
 
     private static JButton findButtonByTooltip(Container container, String tooltip) {
         for (Component component : container.getComponents()) {
-            if (component instanceof JButton && tooltip.equals(((JButton) component).getToolTipText())) {
-                return (JButton) component;
-            }
+            if (component instanceof JButton && tooltip.equals(((JButton) component).getToolTipText())) return (JButton) component;
             if (component instanceof Container) {
                 JButton found = findButtonByTooltip((Container) component, tooltip);
                 if (found != null) return found;
@@ -53,9 +49,7 @@ class ChatPanelDarkThemeTest {
 
     private static JButton findButtonByText(Container container, String text) {
         for (Component component : container.getComponents()) {
-            if (component instanceof JButton && text.equals(((JButton) component).getText())) {
-                return (JButton) component;
-            }
+            if (component instanceof JButton && text.equals(((JButton) component).getText())) return (JButton) component;
             if (component instanceof Container) {
                 JButton found = findButtonByText((Container) component, text);
                 if (found != null) return found;
@@ -67,9 +61,7 @@ class ChatPanelDarkThemeTest {
     private static JLabel findLabelContaining(Container container, String text) {
         for (Component component : container.getComponents()) {
             if (component instanceof JLabel && ((JLabel) component).getText() != null
-                    && ((JLabel) component).getText().contains(text)) {
-                return (JLabel) component;
-            }
+                    && ((JLabel) component).getText().contains(text)) return (JLabel) component;
             if (component instanceof Container) {
                 JLabel found = findLabelContaining((Container) component, text);
                 if (found != null) return found;
