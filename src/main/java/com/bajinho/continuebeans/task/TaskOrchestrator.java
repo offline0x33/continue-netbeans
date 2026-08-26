@@ -4,11 +4,11 @@ import com.bajinho.continuebeans.ConversationManager;
 import com.bajinho.continuebeans.LlmClient;
 import com.bajinho.continuebeans.ai.AIToolCallingIntegration;
 import java.util.Collections;
+import java.util.Locale;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
-/**
- * Executes user goals as explicit tasks and refuses to finish before the plan is complete.
- */
+/** Executes user goals as explicit tasks and refuses to finish before the plan is complete. */
 public final class TaskOrchestrator {
     public interface Listener {
         void onPlanCreated(TaskPlan plan);
@@ -28,24 +28,36 @@ public final class TaskOrchestrator {
     private final AIToolCallingIntegration executor;
     private final LlmClient intentClassifier;
     private final ConversationManager conversationManager;
+    private final ProjectContext projectContext;
 
     public TaskOrchestrator() {
-        this(new TaskPlanner(), new AIToolCallingIntegration(), new LlmClient());
+        this(new TaskPlanner(), new AIToolCallingIntegration(), new LlmClient(), new NetBeansProjectContext());
     }
 
-    /**
-     * Explicit task-orchestration constructor kept deterministic for callers and tests that
-     * already supply a planner/executor. Intent routing belongs to the canonical UI flow.
-     */
+    /** Explicit task-orchestration constructor kept deterministic for callers and tests. */
     public TaskOrchestrator(TaskPlanner planner, AIToolCallingIntegration executor) {
-        this(planner, executor, null);
+        this(planner, executor, null, null);
     }
 
     TaskOrchestrator(TaskPlanner planner, AIToolCallingIntegration executor, LlmClient intentClassifier) {
+        this(planner, executor, intentClassifier, new NetBeansProjectContext());
+    }
+
+    TaskOrchestrator(TaskPlanner planner, AIToolCallingIntegration executor,
+            LlmClient intentClassifier, ProjectContext projectContext) {
         this.planner = planner;
         this.executor = executor;
         this.intentClassifier = intentClassifier;
+        this.projectContext = projectContext;
         this.conversationManager = new ConversationManager();
+    }
+
+    public void refreshProjectContext() {
+        if (projectContext == null) {
+            return;
+        }
+        Optional<String> root = projectContext.currentProjectRoot();
+        executor.setWorkspaceRoot(root.orElse(null));
     }
 
     public CompletableFuture<TaskPlan> executeGoal(String goal, String provider, Listener listener) {
@@ -54,8 +66,14 @@ public final class TaskOrchestrator {
             String planningGoal = goal;
             int replans = 0;
             try {
+                refreshProjectContext();
                 if (intentClassifier != null && !intentClassifier.shouldUseTaskOrchestrator(goal)) {
                     return executeConversation(goal, provider, listener);
+                }
+
+                if (requiresProjectContext(goal) && currentProjectRoot().isEmpty()) {
+                    return failWithoutExecution(goal, listener,
+                            "Nenhum projeto aberto no NetBeans. Abra um projeto antes de pedir uma análise do projeto.");
                 }
 
                 while (replans <= MAX_REPLANS) {
@@ -89,6 +107,43 @@ public final class TaskOrchestrator {
                 throw new RuntimeException(message, e);
             }
         });
+    }
+
+    private Optional<String> currentProjectRoot() {
+        return projectContext == null ? Optional.empty() : projectContext.currentProjectRoot();
+    }
+
+    private TaskPlan failWithoutExecution(String goal, Listener listener, String message) {
+        AgentTask contextTask = new AgentTask(
+                "Contexto do projeto",
+                goal,
+                "Projeto NetBeans aberto e disponível para análise.",
+                Collections.<String>emptyList());
+        contextTask.block(message);
+        TaskPlan plan = new TaskPlan(goal, Collections.singletonList(contextTask));
+        listener.onPlanCreated(plan);
+        listener.onTaskFailed(contextTask);
+        listener.onFailed(message, plan);
+        return plan;
+    }
+
+    private boolean requiresProjectContext(String goal) {
+        if (goal == null) {
+            return false;
+        }
+        String normalized = goal.toLowerCase(Locale.ROOT);
+        return normalized.contains("projeto aberto")
+                || normalized.contains("analisar o projeto")
+                || normalized.contains("analise o projeto")
+                || normalized.contains("analisar projeto")
+                || normalized.contains("analise projeto")
+                || normalized.contains("analyze the project")
+                || normalized.contains("analyze project")
+                || normalized.contains("código do projeto")
+                || normalized.contains("codigo do projeto")
+                || normalized.contains("workspace")
+                || normalized.contains("pom.xml")
+                || normalized.contains("build.gradle");
     }
 
     private TaskPlan executeConversation(String message, String provider, Listener listener) {
