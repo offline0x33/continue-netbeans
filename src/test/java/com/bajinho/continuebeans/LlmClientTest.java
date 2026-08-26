@@ -162,16 +162,24 @@ class LlmClientTest {
     }
 
     @Test
-    void testStreamingWithPlanningMode() {
+    void testStreamingWithPlanningMode() throws Exception {
         try (MockedStatic<ContinueSettings> settingsMock = mockStatic(ContinueSettings.class)) {
             settingsMock.when(ContinueSettings::getModel).thenReturn("model");
             settingsMock.when(ContinueSettings::getApiUrl).thenReturn("http://localhost:1234");
 
             Throwable[] error = {null};
+            CountDownLatch completion = new CountDownLatch(1);
             client.perguntarIAStreaming("code", "plan", "model", "Planning",
-                    chunk -> {}, err -> error[0] = err, () -> {});
+                    chunk -> {},
+                    err -> {
+                        error[0] = err;
+                        completion.countDown();
+                    },
+                    completion::countDown);
 
-            assertNull(error[0]);
+            assertTrue(completion.await(5, TimeUnit.SECONDS), "Streaming callback should finish");
+            assertNotNull(error[0], "Unreachable LM Studio endpoint should report an error");
+            assertInstanceOf(Throwable.class, error[0]);
         }
     }
 
