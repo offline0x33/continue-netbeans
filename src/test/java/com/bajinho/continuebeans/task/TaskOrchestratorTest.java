@@ -3,7 +3,12 @@ package com.bajinho.continuebeans.task;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
+import com.bajinho.continuebeans.LlmClient;
 import com.bajinho.continuebeans.ai.AIToolCallingIntegration;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
@@ -47,6 +52,25 @@ class TaskOrchestratorTest {
         TaskPlanner planner = new TaskPlanner(HttpClient.newHttpClient(), "http://unused", "test");
         assertThrows(IllegalStateException.class,
                 () -> planner.parsePlan("goal", "{\"tasks\":[]}"));
+    }
+
+    @Test
+    void orchestratorAnswersConversationalMessageWithoutPlannerRetries() {
+        LlmClient classifier = mock(LlmClient.class);
+        when(classifier.shouldUseTaskOrchestrator(anyString())).thenReturn(false);
+        RecordingAgent agent = new RecordingAgent(new String[] {"Olá! Como posso ajudar?"});
+        TaskOrchestrator orchestrator = new TaskOrchestrator(
+                new TaskPlanner(HttpClient.newHttpClient(), "http://unused", "test"), agent, classifier);
+        RecordingListener listener = new RecordingListener();
+
+        TaskPlan plan = orchestrator.executeGoal("Olá", "test", listener).join();
+
+        assertTrue(plan.isComplete());
+        assertEquals(1, plan.getTasks().size());
+        assertEquals(TaskStatus.DONE, plan.getTasks().get(0).getStatus());
+        assertEquals("Olá! Como posso ajudar?", plan.getTasks().get(0).getLastResult());
+        assertEquals(1, agent.calls.get());
+        assertEquals(1, listener.completed.size());
     }
 
     @Test
@@ -147,6 +171,15 @@ class TaskOrchestratorTest {
 
         @Override
         public CompletableFuture<AIResponse> processRequestWithToolCalling(String userMessage, String provider) {
+            return nextResponse();
+        }
+
+        @Override
+        public CompletableFuture<AIResponse> processRequestWithToolCalling(JsonArray messages, String provider) {
+            return nextResponse();
+        }
+
+        private CompletableFuture<AIResponse> nextResponse() {
             int index = calls.getAndIncrement();
             String result = results[Math.min(index, results.length - 1)];
             return CompletableFuture.completedFuture(AIResponse.text(result));
