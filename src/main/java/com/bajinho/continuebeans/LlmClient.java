@@ -85,7 +85,7 @@ public class LlmClient {
     }
 
     /** Returns true when the request clearly describes engineering/workspace work. */
-    boolean shouldUseTaskOrchestrator(String message) {
+    public boolean shouldUseTaskOrchestrator(String message) {
         if (message == null || message.isBlank()) {
             return false;
         }
