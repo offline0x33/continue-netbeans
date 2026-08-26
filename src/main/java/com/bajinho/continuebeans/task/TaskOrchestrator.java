@@ -1,5 +1,6 @@
 package com.bajinho.continuebeans.task;
 
+import com.bajinho.continuebeans.ConversationManager;
 import com.bajinho.continuebeans.LlmClient;
 import com.bajinho.continuebeans.ai.AIToolCallingIntegration;
 import java.util.Collections;
@@ -26,6 +27,7 @@ public final class TaskOrchestrator {
     private final TaskPlanner planner;
     private final AIToolCallingIntegration executor;
     private final LlmClient intentClassifier;
+    private final ConversationManager conversationManager;
 
     public TaskOrchestrator() {
         this(new TaskPlanner(), new AIToolCallingIntegration(), new LlmClient());
@@ -43,6 +45,7 @@ public final class TaskOrchestrator {
         this.planner = planner;
         this.executor = executor;
         this.intentClassifier = intentClassifier;
+        this.conversationManager = new ConversationManager();
     }
 
     public CompletableFuture<TaskPlan> executeGoal(String goal, String provider, Listener listener) {
@@ -98,9 +101,10 @@ public final class TaskOrchestrator {
 
         listener.onPlanCreated(plan);
         listener.onTaskStarted(responseTask);
+        conversationManager.addMessage("user", message);
 
         AIToolCallingIntegration.AIResponse response = executor
-                .processRequestWithToolCalling(message, provider)
+                .processRequestWithToolCalling(conversationManager.getMessagesArray(), provider)
                 .join();
         if ("error".equalsIgnoreCase(response.getType())) {
             responseTask.fail(response.getContent());
@@ -109,6 +113,7 @@ public final class TaskOrchestrator {
             return plan;
         }
 
+        conversationManager.addMessage("assistant", response.getContent());
         responseTask.complete(response.getContent());
         listener.onTaskCompleted(responseTask);
         listener.onCompleted(plan);
