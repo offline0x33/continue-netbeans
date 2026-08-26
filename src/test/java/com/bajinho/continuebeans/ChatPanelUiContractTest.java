@@ -1,13 +1,13 @@
 package com.bajinho.continuebeans;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.awt.Component;
 import java.awt.Container;
 import java.awt.Color;
 import javax.swing.JLabel;
-import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTextField;
 import org.junit.jupiter.api.Test;
@@ -30,9 +30,10 @@ class ChatPanelUiContractTest {
         String text = collectLabels(panel);
 
         assertTrue(text.contains("Tip: Type @ conversation"));
-        assertTrue(text.contains("Cascade"));
         assertTrue(text.contains("Local"));
         assertTrue(text.contains("continue-netbeans"));
+        assertFalse(text.contains("Migrate off Cascade"));
+        assertFalse(text.contains("↻ Cascade"));
     }
 
     @Test
