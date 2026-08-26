@@ -24,6 +24,8 @@ import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.Toolkit;
 import java.awt.datatransfer.StringSelection;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -102,6 +104,7 @@ public class ChatPanel extends JPanel {
 
         conversationPanel.add(createThoughtLine("Ready. Describe what you want changed."));
         conversationPanel.add(Box.createVerticalStrut(8));
+        refreshModels();
     }
 
     private JPanel createTopBar() {
@@ -158,16 +161,25 @@ public class ChatPanel extends JPanel {
         left.setOpaque(false);
         left.add(smallControl("+"));
         left.add(smallControl("<> Code"));
-        modeSelector = new JComboBox<>(new String[]{"SWE-1.6 Slow", "LM Studio", "OpenAI-compatible"});
-        modeSelector.setSelectedIndex(1);
+
+        modeSelector = new JComboBox<>();
         modeSelector.setFont(UI_FONT);
         modeSelector.setForeground(PRIMARY);
         modeSelector.setBackground(PANEL);
+        modeSelector.setEditable(false);
+        modeSelector.addActionListener(event -> persistSelectedModel());
+        String configuredModel = ContinueSettings.getModel();
+        if (configuredModel != null && !configuredModel.isBlank()) {
+            modeSelector.addItem(configuredModel);
+            modeSelector.setSelectedItem(configuredModel);
+        } else {
+            modeSelector.addItem("Loading models…");
+        }
         left.add(modeSelector);
 
         JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
         right.setOpaque(false);
-        right.add(smallControl("↻ Cascade"));
+        right.add(statusLabel);
         right.add(smallControl("◉"));
         sendButton = roundButton("↑");
         sendButton.addActionListener(event -> sendPrompt());
@@ -192,12 +204,72 @@ public class ChatPanel extends JPanel {
         JLabel left = new JLabel("▰ Local   |   ▰ continue-netbeans");
         left.setForeground(SECONDARY);
         left.setFont(SMALL_FONT);
-        JLabel right = new JLabel("Migrate off Cascade");
-        right.setForeground(SECONDARY);
-        right.setFont(SMALL_FONT);
         footer.add(left, BorderLayout.WEST);
-        footer.add(right, BorderLayout.EAST);
         return footer;
+    }
+
+    private void refreshModels() {
+        CompletableFuture<List<String>> future = llmClient.getModelosDisponiveisAsync();
+        future.thenAccept(models -> SwingUtilities.invokeLater(() -> {
+            String selected = ContinueSettings.getModel();
+            modeSelector.removeAllItems();
+            if (models != null) {
+                for (String model : models) {
+                    if (model != null && !model.isBlank()) {
+                        modeSelector.addItem(model);
+                    }
+                }
+            }
+            if (modeSelector.getItemCount() == 0) {
+                if (selected != null && !selected.isBlank()) {
+                    modeSelector.addItem(selected);
+                } else {
+                    modeSelector.addItem("No models available");
+                }
+            }
+            if (selected != null && !selected.isBlank()) {
+                modeSelector.setSelectedItem(selected);
+            } else if (modeSelector.getItemCount() > 0) {
+                Object first = modeSelector.getItemAt(0);
+                if (first instanceof String && !((String) first).equals("No models available")) {
+                    ContinueSettings.setModel((String) first);
+                }
+            }
+            updateStatus("Models ready", SECONDARY);
+        })).exceptionally(error -> {
+            SwingUtilities.invokeLater(() -> {
+                String selected = ContinueSettings.getModel();
+                if ((modeSelector.getItemCount() == 0 || "Loading models…".equals(modeSelector.getItemAt(0)))
+                        && selected != null && !selected.isBlank()) {
+                    modeSelector.removeAllItems();
+                    modeSelector.addItem(selected);
+                    modeSelector.setSelectedItem(selected);
+                }
+                updateStatus("Model discovery failed", ORANGE);
+            });
+            return null;
+        });
+    }
+
+    private void persistSelectedModel() {
+        if (modeSelector == null || modeSelector.getSelectedItem() == null) {
+            return;
+        }
+        String selected = String.valueOf(modeSelector.getSelectedItem());
+        if (!selected.isBlank() && !selected.endsWith("…") && !selected.equals("No models available")) {
+            ContinueSettings.setModel(selected);
+            updateStatus("Model: " + selected, SECONDARY);
+        }
+    }
+
+    private String getSelectedModel() {
+        Object selected = modeSelector == null ? null : modeSelector.getSelectedItem();
+        if (selected == null) {
+            return ContinueSettings.getModel();
+        }
+        String model = String.valueOf(selected).trim();
+        return model.isBlank() || model.endsWith("…") || model.equals("No models available")
+                ? ContinueSettings.getModel() : model;
     }
 
     private void sendPrompt() {
@@ -205,6 +277,12 @@ public class ChatPanel extends JPanel {
         if (prompt.isEmpty() || isProcessing) {
             return;
         }
+        String selectedModel = getSelectedModel();
+        if (selectedModel == null || selectedModel.isBlank()) {
+            updateStatus("Select a model first", ORANGE);
+            return;
+        }
+        ContinueSettings.setModel(selectedModel);
         isProcessing = true;
         sendButton.setEnabled(false);
         promptInput.setEnabled(false);
@@ -221,7 +299,6 @@ public class ChatPanel extends JPanel {
                     updateStatus("Planning complete", BLUE);
                 });
             }
-
             @Override
             public void onTaskStarted(AgentTask task) {
                 SwingUtilities.invokeLater(() -> {
@@ -230,7 +307,6 @@ public class ChatPanel extends JPanel {
                     rebuildTaskPanel();
                 });
             }
-
             @Override
             public void onTaskVerifying(AgentTask task) {
                 SwingUtilities.invokeLater(() -> {
@@ -239,7 +315,6 @@ public class ChatPanel extends JPanel {
                     rebuildTaskPanel();
                 });
             }
-
             @Override
             public void onTaskCompleted(AgentTask task) {
                 SwingUtilities.invokeLater(() -> {
@@ -250,7 +325,6 @@ public class ChatPanel extends JPanel {
                     }
                 });
             }
-
             @Override
             public void onTaskFailed(AgentTask task) {
                 SwingUtilities.invokeLater(() -> {
@@ -259,7 +333,6 @@ public class ChatPanel extends JPanel {
                     updateStatus("Task failed", RED);
                 });
             }
-
             @Override
             public void onReplanning(TaskPlan failedPlan) {
                 SwingUtilities.invokeLater(() -> {
@@ -269,7 +342,6 @@ public class ChatPanel extends JPanel {
                     updateStatus("Replanning", ORANGE);
                 });
             }
-
             @Override
             public void onCompleted(TaskPlan plan) {
                 SwingUtilities.invokeLater(() -> {
@@ -281,7 +353,6 @@ public class ChatPanel extends JPanel {
                     resetInputState();
                 });
             }
-
             @Override
             public void onFailed(String message, TaskPlan plan) {
                 SwingUtilities.invokeLater(() -> {
@@ -336,22 +407,13 @@ public class ChatPanel extends JPanel {
 
     private void rebuildTaskPanel() {
         taskPanelHost.removeAll();
-        if (activePlan == null) {
-            return;
-        }
+        if (activePlan == null) return;
         int done = 0;
-        for (AgentTask task : activePlan.getTasks()) {
-            if (task.getStatus() == TaskStatus.DONE) {
-                done++;
-            }
-        }
+        for (AgentTask task : activePlan.getTasks()) if (task.getStatus() == TaskStatus.DONE) done++;
         taskProgressLabel.setText(done + " / " + activePlan.getTasks().size() + " tasks done");
-
         JPanel card = roundedPanel(PANEL, BORDER);
         card.setLayout(new BorderLayout());
-        card.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(BORDER),
-                BorderFactory.createEmptyBorder(10, 12, 10, 12)));
+        card.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createLineBorder(BORDER), BorderFactory.createEmptyBorder(10, 12, 10, 12)));
         JPanel header = new JPanel(new BorderLayout());
         header.setOpaque(false);
         JLabel chevron = new JLabel("⌄");
@@ -359,13 +421,10 @@ public class ChatPanel extends JPanel {
         chevron.setFont(UI_FONT_MEDIUM);
         header.add(chevron, BorderLayout.WEST);
         header.add(taskProgressLabel, BorderLayout.CENTER);
-
         JPanel items = new JPanel();
         items.setOpaque(false);
         items.setLayout(new BoxLayout(items, BoxLayout.Y_AXIS));
-        for (AgentTask task : activePlan.getTasks()) {
-            items.add(taskRow(task));
-        }
+        for (AgentTask task : activePlan.getTasks()) items.add(taskRow(task));
         card.add(header, BorderLayout.NORTH);
         card.add(items, BorderLayout.CENTER);
         taskPanelHost.add(card, BorderLayout.CENTER);
@@ -392,10 +451,7 @@ public class ChatPanel extends JPanel {
         DiffStats diff = DiffStats.from(result);
         JPanel card = roundedPanel(PANEL, BORDER);
         card.setLayout(new BorderLayout(8, 8));
-        card.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(BORDER),
-                BorderFactory.createEmptyBorder(10, 12, 10, 12)));
-
+        card.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createLineBorder(BORDER), BorderFactory.createEmptyBorder(10, 12, 10, 12)));
         JPanel header = new JPanel(new BorderLayout(8, 0));
         header.setOpaque(false);
         JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
@@ -428,7 +484,6 @@ public class ChatPanel extends JPanel {
         counters.add(removed);
         header.add(left, BorderLayout.WEST);
         header.add(counters, BorderLayout.EAST);
-
         JTextArea code = new JTextArea(result);
         code.setEditable(false);
         code.setLineWrap(false);
@@ -440,7 +495,6 @@ public class ChatPanel extends JPanel {
         JScrollPane scroll = new JScrollPane(code);
         scroll.setBorder(BorderFactory.createLineBorder(BORDER));
         scroll.setPreferredSize(new Dimension(10, Math.min(260, Math.max(90, result.split("\\R", -1).length * 18))));
-
         card.add(header, BorderLayout.NORTH);
         card.add(scroll, BorderLayout.CENTER);
         card.setAlignmentX(LEFT_ALIGNMENT);
@@ -465,11 +519,7 @@ public class ChatPanel extends JPanel {
         JButton more = iconButton("…");
         more.setToolTipText("More options");
         more.addActionListener(event -> updateStatus("More options are reserved for the current response", SECONDARY));
-        actions.add(like);
-        actions.add(dislike);
-        actions.add(copy);
-        actions.add(view);
-        actions.add(more);
+        actions.add(like); actions.add(dislike); actions.add(copy); actions.add(view); actions.add(more);
         actions.setAlignmentX(LEFT_ALIGNMENT);
         conversationPanel.add(actions);
         conversationPanel.add(Box.createVerticalStrut(8));
@@ -477,10 +527,7 @@ public class ChatPanel extends JPanel {
     }
 
     private void copyLastResult() {
-        if (lastResult.isBlank()) {
-            updateStatus("Nothing to copy", SECONDARY);
-            return;
-        }
+        if (lastResult.isBlank()) { updateStatus("Nothing to copy", SECONDARY); return; }
         try {
             Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(lastResult), null);
             updateStatus("Result copied", GREEN);
@@ -492,9 +539,7 @@ public class ChatPanel extends JPanel {
     private void appendWarning(String message) {
         JPanel warning = roundedPanel(WARNING_BG, WARNING_BORDER);
         warning.setLayout(new BorderLayout(8, 0));
-        warning.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(WARNING_BORDER),
-                BorderFactory.createEmptyBorder(10, 12, 10, 12)));
+        warning.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createLineBorder(WARNING_BORDER), BorderFactory.createEmptyBorder(10, 12, 10, 12)));
         JLabel icon = new JLabel("▲");
         icon.setForeground(ORANGE);
         JLabel text = new JLabel("<html>" + escape(message) + "</html>");
@@ -544,9 +589,7 @@ public class ChatPanel extends JPanel {
     private JPanel roundedPanel(Color background, Color border) {
         JPanel panel = new JPanel();
         panel.setBackground(background);
-        panel.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(border, 1),
-                BorderFactory.createEmptyBorder(1, 1, 1, 1)));
+        panel.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createLineBorder(border, 1), BorderFactory.createEmptyBorder(1, 1, 1, 1)));
         return panel;
     }
 
@@ -582,6 +625,7 @@ public class ChatPanel extends JPanel {
         sendButton.setEnabled(true);
         promptInput.setEnabled(true);
         modeSelector.setEnabled(true);
+        refreshModels();
         promptInput.requestFocus();
     }
 
@@ -605,33 +649,21 @@ public class ChatPanel extends JPanel {
         refreshConversation();
     }
 
-    public LlmClient getLlmClient() {
-        return llmClient;
-    }
-
-    public boolean isProcessing() {
-        return isProcessing;
-    }
+    public LlmClient getLlmClient() { return llmClient; }
+    public boolean isProcessing() { return isProcessing; }
 
     private static final class DiffStats {
         private final int added;
         private final int removed;
         private final boolean newFile;
-
-        private DiffStats(int added, int removed, boolean newFile) {
-            this.added = added;
-            this.removed = removed;
-            this.newFile = newFile;
-        }
-
+        private DiffStats(int added, int removed, boolean newFile) { this.added = added; this.removed = removed; this.newFile = newFile; }
         private static DiffStats from(String value) {
             int added = find(POSITIVE_DIFF, value);
             int removed = find(NEGATIVE_DIFF, value);
             boolean newFile = value.contains("new file") || value.contains("@@");
             if (added == 0 && removed == 0) {
                 String[] lines = value.split("\\R", -1);
-                int additions = 0;
-                int deletions = 0;
+                int additions = 0, deletions = 0;
                 for (String line : lines) {
                     if (line.startsWith("+")) additions++;
                     if (line.startsWith("-")) deletions++;
@@ -641,7 +673,6 @@ public class ChatPanel extends JPanel {
             }
             return new DiffStats(added, removed, newFile);
         }
-
         private static int find(Pattern pattern, String value) {
             Matcher matcher = pattern.matcher(value);
             return matcher.find() ? Integer.parseInt(matcher.group(1)) : 0;
