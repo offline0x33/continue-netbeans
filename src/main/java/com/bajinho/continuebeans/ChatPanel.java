@@ -589,23 +589,6 @@ public class ChatPanel extends JPanel {
         conversationPanel.repaint();
     }
 
-    private static JPanel createThoughtLinePanel(String text) {
-        JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 7, 0));
-        row.setOpaque(false);
-        JLabel brain = new JLabel("◌");
-        brain.setForeground(SECONDARY);
-        JLabel value = new JLabel(text);
-        value.setForeground(SECONDARY);
-        value.setFont(UI_FONT);
-        row.add(brain);
-        row.add(value);
-        return row;
-    }
-
-    private JPanel createThoughtLine(String text) {
-        return createThoughtLinePanel(text);
-    }
-
     private static String escape(String text) {
         if (text == null) return "";
         return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
@@ -647,11 +630,13 @@ public class ChatPanel extends JPanel {
             if (added == 0 && removed == 0) {
                 String[] lines = value.split("\\R", -1);
                 int additions = 0;
+                int deletions = 0;
                 for (String line : lines) {
                     if (line.startsWith("+")) additions++;
-                    if (line.startsWith("-")) removed++;
+                    if (line.startsWith("-")) deletions++;
                 }
                 added = additions;
+                removed = deletions;
             }
             return new DiffStats(added, removed, newFile);
         }
