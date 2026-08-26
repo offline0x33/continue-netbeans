@@ -1,12 +1,14 @@
 package com.bajinho.continuebeans.task;
 
 import com.bajinho.continuebeans.ConversationManager;
+import com.bajinho.continuebeans.ContinueSettings;
 import com.bajinho.continuebeans.LlmClient;
 import com.bajinho.continuebeans.ai.AIToolCallingIntegration;
 import java.util.Collections;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 
 /** Executes user goals as explicit tasks and refuses to finish before the plan is complete. */
 public final class TaskOrchestrator {
@@ -19,6 +21,11 @@ public final class TaskOrchestrator {
         void onReplanning(TaskPlan failedPlan);
         void onCompleted(TaskPlan plan);
         void onFailed(String message, TaskPlan plan);
+
+        /** Called for each response chunk in conversational mode. */
+        default void onConversationChunk(String chunk) {
+            // Optional for existing callers that only need task lifecycle events.
+        }
     }
 
     private static final int MAX_TASK_ATTEMPTS = 3;
@@ -158,18 +165,52 @@ public final class TaskOrchestrator {
         listener.onTaskStarted(responseTask);
         conversationManager.addMessage("user", message);
 
-        AIToolCallingIntegration.AIResponse response = executor
-                .processRequestWithToolCalling(conversationManager.getMessagesArray(), provider)
-                .join();
-        if ("error".equalsIgnoreCase(response.getType())) {
-            responseTask.fail(response.getContent());
+        if (intentClassifier == null) {
+            String error = "Cliente LLM não configurado para conversação.";
+            responseTask.fail(error);
             listener.onTaskFailed(responseTask);
-            listener.onFailed(response.getContent(), plan);
+            listener.onFailed(error, plan);
             return plan;
         }
 
-        conversationManager.addMessage("assistant", response.getContent());
-        responseTask.complete(response.getContent());
+        StringBuilder responseContent = new StringBuilder();
+        CompletableFuture<Void> responseFuture = new CompletableFuture<>();
+        intentClassifier.perguntarIAStreaming(
+                "",
+                message,
+                ContinueSettings.getModel(),
+                "",
+                chunk -> {
+                    if (chunk != null && !chunk.isEmpty()) {
+                        responseContent.append(chunk);
+                        listener.onConversationChunk(chunk);
+                    }
+                },
+                responseFuture::completeExceptionally,
+                () -> responseFuture.complete(null));
+
+        try {
+            responseFuture.join();
+        } catch (CompletionException e) {
+            Throwable cause = e.getCause() == null ? e : e.getCause();
+            String error = cause.getMessage() == null ? cause.getClass().getSimpleName() : cause.getMessage();
+            responseTask.fail(error);
+            listener.onTaskFailed(responseTask);
+            listener.onFailed(error, plan);
+            return plan;
+        }
+
+        String response = responseContent.toString();
+        if (response.isBlank()) {
+            String error = "O modelo não retornou conteúdo.";
+            responseTask.fail(error);
+            listener.onTaskFailed(responseTask);
+            listener.onFailed(error, plan);
+            return plan;
+        }
+
+        conversationManager.addMessage("assistant", response);
+        responseTask.complete(response);
         listener.onTaskCompleted(responseTask);
         listener.onCompleted(plan);
         return plan;
