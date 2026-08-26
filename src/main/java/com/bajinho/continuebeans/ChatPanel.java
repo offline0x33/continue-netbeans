@@ -39,6 +39,7 @@ import java.awt.event.MouseEvent;
 import java.net.URI;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -58,6 +59,7 @@ public class ChatPanel extends JPanel {
     private static final Color WARNING_BG = new Color(0x2D, 0x1C, 0x11);
     private static final Color WARNING_BORDER = new Color(0x52, 0x2E, 0x15);
     private static final Color SEND_BG = new Color(0x3F, 0x3F, 0x46);
+    private static final Color STOP_BG = new Color(0x7F, 0x1D, 0x1D);
     private static final Color HOVER = new Color(0x27, 0x27, 0x2A);
     private static final Color FOCUS = new Color(0x3B, 0x82, 0xF6);
     private static final Font UI_FONT = new Font("Inter", Font.PLAIN, 13);
@@ -76,8 +78,12 @@ public class ChatPanel extends JPanel {
     private final JLabel taskProgressLabel;
     private JTextField promptInput;
     private JButton sendButton;
-    private JComboBox<String> modeSelector;
+    private JButton stopButton;
+    private JComboBox<String> modelSelector;
+    private JComboBox<AgentMode> agentModeSelector;
     private boolean isProcessing;
+    private final AtomicBoolean cancelRequested = new AtomicBoolean(false);
+    private volatile CompletableFuture<?> activeRequest;
     private TaskPlan activePlan;
     private String lastResult = "";
     private String lastTitle = "";
@@ -174,8 +180,14 @@ public class ChatPanel extends JPanel {
         promptInput.setFont(UI_FONT);
         promptInput.addActionListener(event -> sendPrompt());
         promptInput.addFocusListener(new FocusAdapter() {
-            @Override public void focusGained(FocusEvent e) { box.setBorder(BorderFactory.createCompoundBorder(roundedBorder(FOCUS, 12), BorderFactory.createEmptyBorder(10, 12, 8, 12))); box.repaint(); }
-            @Override public void focusLost(FocusEvent e) { box.setBorder(BorderFactory.createCompoundBorder(roundedBorder(BORDER, 12), BorderFactory.createEmptyBorder(10, 12, 8, 12))); box.repaint(); }
+            @Override public void focusGained(FocusEvent e) {
+                box.setBorder(BorderFactory.createCompoundBorder(roundedBorder(FOCUS, 12), BorderFactory.createEmptyBorder(10, 12, 8, 12)));
+                box.repaint();
+            }
+            @Override public void focusLost(FocusEvent e) {
+                box.setBorder(BorderFactory.createCompoundBorder(roundedBorder(BORDER, 12), BorderFactory.createEmptyBorder(10, 12, 8, 12)));
+                box.repaint();
+            }
         });
         promptInput.getDocument().addDocumentListener(new DocumentListener() {
             public void insertUpdate(DocumentEvent e) { updateSendAvailability(); }
@@ -188,22 +200,31 @@ public class ChatPanel extends JPanel {
         JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
         left.setOpaque(false);
         left.add(smallControl("+"));
-        left.add(smallControl("<> Code"));
 
-        modeSelector = new JComboBox<>();
-        modeSelector.setFont(UI_FONT);
-        modeSelector.setForeground(PRIMARY);
-        modeSelector.setBackground(PANEL);
-        modeSelector.setEditable(false);
-        modeSelector.addActionListener(event -> persistSelectedModel());
+        agentModeSelector = new JComboBox<>(AgentMode.values());
+        agentModeSelector.setFont(UI_FONT);
+        agentModeSelector.setForeground(PRIMARY);
+        agentModeSelector.setBackground(PANEL);
+        agentModeSelector.setSelectedItem(ContinueSettings.getAgentMode());
+        agentModeSelector.setToolTipText("Agent mode: Code, Planning, Docs or Agent");
+        agentModeSelector.addActionListener(event -> persistSelectedAgentMode());
+        left.add(agentModeSelector);
+
+        modelSelector = new JComboBox<>();
+        modelSelector.setFont(UI_FONT);
+        modelSelector.setForeground(PRIMARY);
+        modelSelector.setBackground(PANEL);
+        modelSelector.setEditable(false);
+        modelSelector.setToolTipText("Model");
+        modelSelector.addActionListener(event -> persistSelectedModel());
         String configuredModel = ContinueSettings.getModel();
         if (configuredModel != null && !configuredModel.isBlank()) {
-            modeSelector.addItem(configuredModel);
-            modeSelector.setSelectedItem(configuredModel);
+            modelSelector.addItem(configuredModel);
+            modelSelector.setSelectedItem(configuredModel);
         } else {
-            modeSelector.addItem("Loading models…");
+            modelSelector.addItem("Loading models…");
         }
-        left.add(modeSelector);
+        left.add(modelSelector);
 
         JButton refresh = smallControl("↻");
         refresh.setToolTipText("Refresh models");
@@ -213,10 +234,19 @@ public class ChatPanel extends JPanel {
         JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
         right.setOpaque(false);
         right.add(statusLabel);
+
+        stopButton = roundButton("■");
+        stopButton.setBackground(STOP_BG);
+        stopButton.setToolTipText("Stop generation");
+        stopButton.setVisible(false);
+        stopButton.addActionListener(event -> stopGeneration());
+        right.add(stopButton);
+
         sendButton = roundButton("↑");
         sendButton.setToolTipText("Send");
         sendButton.addActionListener(event -> sendPrompt());
         right.add(sendButton);
+
         controls.add(left, BorderLayout.WEST);
         controls.add(right, BorderLayout.EAST);
 
@@ -269,39 +299,39 @@ public class ChatPanel extends JPanel {
         CompletableFuture<List<String>> future = llmClient.getModelosDisponiveisAsync();
         future.thenAccept(models -> SwingUtilities.invokeLater(() -> {
             String selected = ContinueSettings.getModel();
-            modeSelector.removeAllItems();
+            modelSelector.removeAllItems();
             if (models != null) {
                 for (String model : models) {
                     if (model != null && !model.isBlank()) {
-                        modeSelector.addItem(model);
+                        modelSelector.addItem(model);
                     }
                 }
             }
-            if (modeSelector.getItemCount() == 0) {
+            if (modelSelector.getItemCount() == 0) {
                 if (selected != null && !selected.isBlank()) {
-                    modeSelector.addItem(selected);
+                    modelSelector.addItem(selected);
                 } else {
-                    modeSelector.addItem("No models available");
+                    modelSelector.addItem("No models available");
                 }
             }
             if (selected != null && !selected.isBlank() && containsItem(selected)) {
-                modeSelector.setSelectedItem(selected);
-            } else if (modeSelector.getItemCount() > 0) {
-                Object first = modeSelector.getItemAt(0);
+                modelSelector.setSelectedItem(selected);
+            } else if (modelSelector.getItemCount() > 0) {
+                Object first = modelSelector.getItemAt(0);
                 if (first instanceof String && !((String) first).equals("No models available")) {
                     ContinueSettings.setModel((String) first);
-                    modeSelector.setSelectedItem(first);
+                    modelSelector.setSelectedItem(first);
                 }
             }
             updateStatus("Models ready", SECONDARY);
         })).exceptionally(error -> {
             SwingUtilities.invokeLater(() -> {
                 String selected = ContinueSettings.getModel();
-                if ((modeSelector.getItemCount() == 0 || "Loading models…".equals(modeSelector.getItemAt(0)))
+                if ((modelSelector.getItemCount() == 0 || "Loading models…".equals(modelSelector.getItemAt(0)))
                         && selected != null && !selected.isBlank()) {
-                    modeSelector.removeAllItems();
-                    modeSelector.addItem(selected);
-                    modeSelector.setSelectedItem(selected);
+                    modelSelector.removeAllItems();
+                    modelSelector.addItem(selected);
+                    modelSelector.setSelectedItem(selected);
                 }
                 updateStatus("Model discovery failed", ORANGE);
             });
@@ -310,8 +340,8 @@ public class ChatPanel extends JPanel {
     }
 
     private boolean containsItem(String value) {
-        for (int index = 0; index < modeSelector.getItemCount(); index++) {
-            if (value.equals(modeSelector.getItemAt(index))) {
+        for (int index = 0; index < modelSelector.getItemCount(); index++) {
+            if (value.equals(modelSelector.getItemAt(index))) {
                 return true;
             }
         }
@@ -319,70 +349,203 @@ public class ChatPanel extends JPanel {
     }
 
     private void persistSelectedModel() {
-        if (modeSelector == null || modeSelector.getSelectedItem() == null) return;
-        String selected = String.valueOf(modeSelector.getSelectedItem());
+        if (modelSelector == null || modelSelector.getSelectedItem() == null) {
+            return;
+        }
+        String selected = String.valueOf(modelSelector.getSelectedItem());
         if (!selected.isBlank() && !selected.endsWith("…") && !selected.equals("No models available")) {
             ContinueSettings.setModel(selected);
             updateStatus("Model: " + selected, SECONDARY);
         }
     }
 
+    private void persistSelectedAgentMode() {
+        if (agentModeSelector == null || agentModeSelector.getSelectedItem() == null) {
+            return;
+        }
+        AgentMode mode = (AgentMode) agentModeSelector.getSelectedItem();
+        ContinueSettings.setAgentMode(mode);
+        updateStatus("Mode: " + mode.getLabel(), SECONDARY);
+    }
+
     private String getSelectedModel() {
-        Object selected = modeSelector == null ? null : modeSelector.getSelectedItem();
-        if (selected == null) return ContinueSettings.getModel();
+        Object selected = modelSelector == null ? null : modelSelector.getSelectedItem();
+        if (selected == null) {
+            return ContinueSettings.getModel();
+        }
         String model = String.valueOf(selected).trim();
-        return model.isBlank() || model.endsWith("…") || model.equals("No models available") ? ContinueSettings.getModel() : model;
+        return model.isBlank() || model.endsWith("…") || model.equals("No models available")
+                ? ContinueSettings.getModel() : model;
+    }
+
+    private AgentMode getSelectedAgentMode() {
+        Object selected = agentModeSelector == null ? null : agentModeSelector.getSelectedItem();
+        if (selected instanceof AgentMode) {
+            return (AgentMode) selected;
+        }
+        return ContinueSettings.getAgentMode();
     }
 
     private void updateSendAvailability() {
         if (sendButton != null) {
             sendButton.setEnabled(!isProcessing && promptInput != null && !promptInput.getText().trim().isEmpty());
         }
+        if (stopButton != null) {
+            stopButton.setVisible(isProcessing);
+            stopButton.setEnabled(isProcessing);
+        }
     }
 
     private void sendPrompt() {
         String prompt = promptInput.getText().trim();
-        if (prompt.isEmpty() || isProcessing) return;
+        if (prompt.isEmpty() || isProcessing) {
+            return;
+        }
         String selectedModel = getSelectedModel();
         if (selectedModel == null || selectedModel.isBlank()) {
             updateStatus("Select a model first", ORANGE);
             return;
         }
+        AgentMode agentMode = getSelectedAgentMode();
         ContinueSettings.setModel(selectedModel);
+        ContinueSettings.setAgentMode(agentMode);
+
+        cancelRequested.set(false);
         isProcessing = true;
         sendButton.setEnabled(false);
+        stopButton.setVisible(true);
+        stopButton.setEnabled(true);
         promptInput.setEnabled(false);
-        modeSelector.setEnabled(false);
+        modelSelector.setEnabled(false);
+        agentModeSelector.setEnabled(false);
+
         appendMessage("You", prompt, PRIMARY);
-        appendThought("Thought for 0s", "Planning task graph...");
-        taskOrchestrator.executeGoal(prompt, "lmstudio", new TaskOrchestrator.Listener() {
+        appendThought("Mode: " + agentMode.getLabel(), "Planning task graph...");
+
+        CompletableFuture<TaskPlan> request = taskOrchestrator.executeGoal(prompt, "lmstudio",
+                new TaskOrchestrator.Listener() {
             @Override public void onPlanCreated(TaskPlan plan) {
-                SwingUtilities.invokeLater(() -> { activePlan = plan; rebuildTaskPanel(); appendTaskPanel(); updateStatus("Planning complete", BLUE); appendActivity("Planner", "Task graph created", BLUE); });
+                if (cancelRequested.get()) {
+                    return;
+                }
+                SwingUtilities.invokeLater(() -> {
+                    activePlan = plan;
+                    rebuildTaskPanel();
+                    appendTaskPanel();
+                    updateStatus("Planning complete", BLUE);
+                    appendActivity("Planner", "Task graph created", BLUE);
+                });
             }
             @Override public void onTaskStarted(AgentTask task) {
-                SwingUtilities.invokeLater(() -> { updateStatus("Running: " + task.getTitle(), ORANGE); appendThought("Working on: " + task.getTitle(), "Attempt " + task.getAttempts()); appendActivity("Tool", task.getTitle(), ORANGE); rebuildTaskPanel(); });
+                if (cancelRequested.get()) {
+                    return;
+                }
+                SwingUtilities.invokeLater(() -> {
+                    updateStatus("Running: " + task.getTitle(), ORANGE);
+                    appendThought("Working on: " + task.getTitle(), "Attempt " + task.getAttempts());
+                    appendActivity("Tool", task.getTitle(), ORANGE);
+                    rebuildTaskPanel();
+                });
             }
             @Override public void onTaskVerifying(AgentTask task) {
-                SwingUtilities.invokeLater(() -> { updateStatus("Verifying: " + task.getTitle(), ORANGE); appendThought("Verifying", task.getTitle()); appendActivity("Verify", task.getTitle(), ORANGE); rebuildTaskPanel(); });
+                if (cancelRequested.get()) {
+                    return;
+                }
+                SwingUtilities.invokeLater(() -> {
+                    updateStatus("Verifying: " + task.getTitle(), ORANGE);
+                    appendThought("Verifying", task.getTitle());
+                    appendActivity("Verify", task.getTitle(), ORANGE);
+                    rebuildTaskPanel();
+                });
             }
             @Override public void onTaskCompleted(AgentTask task) {
-                SwingUtilities.invokeLater(() -> { rebuildTaskPanel(); if (task.getLastResult() != null && !task.getLastResult().isBlank()) { lastResult = task.getLastResult(); lastTitle = task.getTitle(); appendCodeResult(task.getTitle(), task.getLastResult()); appendActivity("File", extractFileReference(task.getTitle(), task.getLastResult()), GREEN); } });
+                if (cancelRequested.get()) {
+                    return;
+                }
+                SwingUtilities.invokeLater(() -> {
+                    rebuildTaskPanel();
+                    if (task.getLastResult() != null && !task.getLastResult().isBlank()) {
+                        lastResult = task.getLastResult();
+                        lastTitle = task.getTitle();
+                        appendCodeResult(task.getTitle(), task.getLastResult());
+                        appendActivity("File", extractFileReference(task.getTitle(), task.getLastResult()), GREEN);
+                    }
+                });
             }
             @Override public void onTaskFailed(AgentTask task) {
-                SwingUtilities.invokeLater(() -> { rebuildTaskPanel(); appendThought("Task failed", task.getLastError()); appendActivity("Error", task.getLastError(), RED); updateStatus("Task failed", RED); });
+                if (cancelRequested.get()) {
+                    return;
+                }
+                SwingUtilities.invokeLater(() -> {
+                    rebuildTaskPanel();
+                    appendThought("Task failed", task.getLastError());
+                    appendActivity("Error", task.getLastError(), RED);
+                    updateStatus("Task failed", RED);
+                });
             }
             @Override public void onReplanning(TaskPlan failedPlan) {
-                SwingUtilities.invokeLater(() -> { activePlan = failedPlan; rebuildTaskPanel(); appendThought("Replanning", "Previous failure preserved as context"); appendActivity("Planner", "Rebuilding task graph", ORANGE); updateStatus("Replanning", ORANGE); });
+                if (cancelRequested.get()) {
+                    return;
+                }
+                SwingUtilities.invokeLater(() -> {
+                    activePlan = failedPlan;
+                    rebuildTaskPanel();
+                    appendThought("Replanning", "Previous failure preserved as context");
+                    appendActivity("Planner", "Rebuilding task graph", ORANGE);
+                    updateStatus("Replanning", ORANGE);
+                });
             }
             @Override public void onCompleted(TaskPlan plan) {
-                SwingUtilities.invokeLater(() -> { activePlan = plan; rebuildTaskPanel(); appendThought("Objective completed", "All tasks verified"); appendActions(); updateStatus("Completed", GREEN); resetInputState(); });
+                SwingUtilities.invokeLater(() -> {
+                    if (!cancelRequested.get()) {
+                        activePlan = plan;
+                        rebuildTaskPanel();
+                        appendThought("Objective completed", "All tasks verified");
+                        appendActions();
+                        updateStatus("Completed", GREEN);
+                    }
+                    resetInputState();
+                });
             }
             @Override public void onFailed(String message, TaskPlan plan) {
-                SwingUtilities.invokeLater(() -> { activePlan = plan; rebuildTaskPanel(); appendWarning(message); appendActivity("Error", message, RED); updateStatus("Failed", RED); resetInputState(); });
+                SwingUtilities.invokeLater(() -> {
+                    if (!cancelRequested.get()) {
+                        activePlan = plan;
+                        rebuildTaskPanel();
+                        appendWarning(message);
+                        appendActivity("Error", message, RED);
+                        updateStatus("Failed", RED);
+                    }
+                    resetInputState();
+                });
             }
         });
+
+        activeRequest = request;
+        request.whenComplete((plan, error) -> SwingUtilities.invokeLater(() -> {
+            if (cancelRequested.get()) {
+                appendThought("Stopped", "Generation cancelled by user");
+                updateStatus("Stopped", ORANGE);
+                resetInputState();
+            }
+        }));
+
         promptInput.setText("");
         updateSendAvailability();
+    }
+
+    private void stopGeneration() {
+        if (!isProcessing) {
+            return;
+        }
+        cancelRequested.set(true);
+        CompletableFuture<?> request = activeRequest;
+        if (request != null) {
+            request.cancel(true);
+        }
+        appendThought("Stopping…", "Cancelling active request");
+        updateStatus("Stopping…", ORANGE);
+        resetInputState();
     }
 
     private void appendMessage(String author, String message, Color color) {
@@ -410,7 +573,8 @@ public class ChatPanel extends JPanel {
         JLabel icon = new JLabel(activityIcon(kind));
         icon.setForeground(color);
         icon.setFont(UI_FONT_MEDIUM);
-        JLabel value = new JLabel("<html><span style='color:#A1A1AA'>" + escape(kind) + "</span> &nbsp; <span style='color:#60A5FA'>" + escape(text) + "</span></html>");
+        JLabel value = new JLabel("<html><span style='color:#A1A1AA'>" + escape(kind)
+                + "</span> &nbsp; <span style='color:#60A5FA'>" + escape(text) + "</span></html>");
         value.setFont(SMALL_FONT);
         value.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         value.setToolTipText(text);
@@ -434,7 +598,9 @@ public class ChatPanel extends JPanel {
 
     private String extractFileReference(String title, String result) {
         Matcher matcher = FILE_PATTERN.matcher(result == null ? "" : result);
-        if (matcher.find()) return matcher.group();
+        if (matcher.find()) {
+            return matcher.group();
+        }
         matcher = FILE_PATTERN.matcher(title == null ? "" : title);
         return matcher.find() ? matcher.group() : (title == null ? "result" : title);
     }
@@ -461,13 +627,20 @@ public class ChatPanel extends JPanel {
 
     private void rebuildTaskPanel() {
         taskPanelHost.removeAll();
-        if (activePlan == null) return;
+        if (activePlan == null) {
+            return;
+        }
         int done = 0;
-        for (AgentTask task : activePlan.getTasks()) if (task.getStatus() == TaskStatus.DONE) done++;
+        for (AgentTask task : activePlan.getTasks()) {
+            if (task.getStatus() == TaskStatus.DONE) {
+                done++;
+            }
+        }
         taskProgressLabel.setText(done + " / " + activePlan.getTasks().size() + " tasks done");
         JPanel card = roundedPanel(PANEL, BORDER, 8);
         card.setLayout(new BorderLayout());
-        card.setBorder(BorderFactory.createCompoundBorder(roundedBorder(BORDER, 8), BorderFactory.createEmptyBorder(10, 12, 10, 12)));
+        card.setBorder(BorderFactory.createCompoundBorder(roundedBorder(BORDER, 8),
+                BorderFactory.createEmptyBorder(10, 12, 10, 12)));
         JPanel header = new JPanel(new BorderLayout());
         header.setOpaque(false);
         JLabel chevron = new JLabel("⌄");
@@ -478,7 +651,9 @@ public class ChatPanel extends JPanel {
         JPanel items = new JPanel();
         items.setOpaque(false);
         items.setLayout(new BoxLayout(items, BoxLayout.Y_AXIS));
-        for (AgentTask task : activePlan.getTasks()) items.add(taskRow(task));
+        for (AgentTask task : activePlan.getTasks()) {
+            items.add(taskRow(task));
+        }
         card.add(header, BorderLayout.NORTH);
         card.add(items, BorderLayout.CENTER);
         taskPanelHost.add(card, BorderLayout.CENTER);
@@ -507,7 +682,8 @@ public class ChatPanel extends JPanel {
         String fileName = extractFileReference(title, result);
         JPanel card = roundedPanel(PANEL, BORDER, 8);
         card.setLayout(new BorderLayout(8, 8));
-        card.setBorder(BorderFactory.createCompoundBorder(roundedBorder(BORDER, 8), BorderFactory.createEmptyBorder(10, 12, 10, 12)));
+        card.setBorder(BorderFactory.createCompoundBorder(roundedBorder(BORDER, 8),
+                BorderFactory.createEmptyBorder(10, 12, 10, 12)));
         JPanel header = new JPanel(new BorderLayout(8, 0));
         header.setOpaque(false);
         JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
@@ -589,7 +765,8 @@ public class ChatPanel extends JPanel {
     }
 
     private void showDetails() {
-        String file = lastTitle == null || lastTitle.isBlank() ? "response" : extractFileReference(lastTitle, lastResult);
+        String file = lastTitle == null || lastTitle.isBlank()
+                ? "response" : extractFileReference(lastTitle, lastResult);
         updateStatus("Response details: " + file, BLUE);
     }
 
@@ -620,7 +797,8 @@ public class ChatPanel extends JPanel {
     private void appendWarning(String message) {
         JPanel warning = roundedPanel(WARNING_BG, WARNING_BORDER, 8);
         warning.setLayout(new BorderLayout(8, 0));
-        warning.setBorder(BorderFactory.createCompoundBorder(roundedBorder(WARNING_BORDER, 8), BorderFactory.createEmptyBorder(10, 12, 10, 12)));
+        warning.setBorder(BorderFactory.createCompoundBorder(roundedBorder(WARNING_BORDER, 8),
+                BorderFactory.createEmptyBorder(10, 12, 10, 12)));
         JLabel icon = new JLabel("▲");
         icon.setForeground(ORANGE);
         JLabel text = new JLabel("<html>" + escape(message) + "</html>");
@@ -672,8 +850,14 @@ public class ChatPanel extends JPanel {
 
     private void installHover(JButton button, Color normal, Color hover) {
         button.addMouseListener(new MouseAdapter() {
-            @Override public void mouseEntered(MouseEvent e) { if (button.isEnabled()) button.setBackground(hover); }
-            @Override public void mouseExited(MouseEvent e) { button.setBackground(normal); }
+            @Override public void mouseEntered(MouseEvent e) {
+                if (button.isEnabled()) {
+                    button.setBackground(hover);
+                }
+            }
+            @Override public void mouseExited(MouseEvent e) {
+                button.setBackground(normal);
+            }
         });
     }
 
@@ -681,7 +865,8 @@ public class ChatPanel extends JPanel {
         JPanel panel = new JPanel() {
             @Override protected void paintComponent(Graphics g) {
                 Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING,
+                        java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
                 g2.setColor(getBackground());
                 g2.fillRoundRect(0, 0, getWidth(), getHeight(), radius, radius);
                 g2.dispose();
@@ -700,12 +885,17 @@ public class ChatPanel extends JPanel {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setColor(color);
                 g2.setStroke(new BasicStroke(1f));
-                g2.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING,
+                        java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
                 g2.drawRoundRect(x, y, width - 1, height - 1, radius, radius);
                 g2.dispose();
             }
-            public Insets getBorderInsets(java.awt.Component c) { return new Insets(1, 1, 1, 1); }
-            public boolean isBorderOpaque() { return false; }
+            public Insets getBorderInsets(java.awt.Component c) {
+                return new Insets(1, 1, 1, 1);
+            }
+            public boolean isBorderOpaque() {
+                return false;
+            }
         };
     }
 
@@ -738,9 +928,13 @@ public class ChatPanel extends JPanel {
 
     private void resetInputState() {
         isProcessing = false;
+        activeRequest = null;
         sendButton.setEnabled(true);
+        stopButton.setVisible(false);
+        stopButton.setEnabled(false);
         promptInput.setEnabled(true);
-        modeSelector.setEnabled(true);
+        modelSelector.setEnabled(true);
+        agentModeSelector.setEnabled(true);
         promptInput.requestFocus();
         updateSendAvailability();
     }
@@ -751,7 +945,9 @@ public class ChatPanel extends JPanel {
     }
 
     private static String escape(String text) {
-        if (text == null) return "";
+        if (text == null) {
+            return "";
+        }
         return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
     }
 
@@ -794,8 +990,12 @@ public class ChatPanel extends JPanel {
                 int additions = 0;
                 int deletions = 0;
                 for (String line : lines) {
-                    if (line.startsWith("+")) additions++;
-                    if (line.startsWith("-")) deletions++;
+                    if (line.startsWith("+")) {
+                        additions++;
+                    }
+                    if (line.startsWith("-")) {
+                        deletions++;
+                    }
                 }
                 added = additions;
                 removed = deletions;
