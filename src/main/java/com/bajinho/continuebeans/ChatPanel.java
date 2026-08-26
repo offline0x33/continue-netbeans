@@ -24,6 +24,7 @@ import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.Toolkit;
 import java.awt.datatransfer.StringSelection;
+import java.net.URI;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.regex.Matcher;
@@ -104,7 +105,9 @@ public class ChatPanel extends JPanel {
 
         conversationPanel.add(createThoughtLine("Ready. Describe what you want changed."));
         conversationPanel.add(Box.createVerticalStrut(8));
-        refreshModels();
+        if (hasConfiguredApiUrl()) {
+            refreshModels();
+        }
     }
 
     private JPanel createTopBar() {
@@ -204,11 +207,33 @@ public class ChatPanel extends JPanel {
         JLabel left = new JLabel("▰ Local   |   ▰ continue-netbeans");
         left.setForeground(SECONDARY);
         left.setFont(SMALL_FONT);
+        JLabel right = new JLabel("Ready");
+        right.setForeground(SECONDARY);
+        right.setFont(SMALL_FONT);
         footer.add(left, BorderLayout.WEST);
+        footer.add(right, BorderLayout.EAST);
         return footer;
     }
 
+    private boolean hasConfiguredApiUrl() {
+        String apiUrl = ContinueSettings.getApiUrl();
+        if (apiUrl == null || apiUrl.isBlank()) {
+            return false;
+        }
+        try {
+            URI uri = URI.create(apiUrl.trim());
+            return uri.getScheme() != null && !uri.getScheme().isBlank();
+        } catch (IllegalArgumentException ignored) {
+            return false;
+        }
+    }
+
     private void refreshModels() {
+        if (!hasConfiguredApiUrl()) {
+            updateStatus("Configure AI API", ORANGE);
+            return;
+        }
+
         CompletableFuture<List<String>> future = llmClient.getModelosDisponiveisAsync();
         future.thenAccept(models -> SwingUtilities.invokeLater(() -> {
             String selected = ContinueSettings.getModel();
@@ -227,12 +252,13 @@ public class ChatPanel extends JPanel {
                     modeSelector.addItem("No models available");
                 }
             }
-            if (selected != null && !selected.isBlank()) {
+            if (selected != null && !selected.isBlank() && containsItem(selected)) {
                 modeSelector.setSelectedItem(selected);
             } else if (modeSelector.getItemCount() > 0) {
                 Object first = modeSelector.getItemAt(0);
                 if (first instanceof String && !((String) first).equals("No models available")) {
                     ContinueSettings.setModel((String) first);
+                    modeSelector.setSelectedItem(first);
                 }
             }
             updateStatus("Models ready", SECONDARY);
@@ -249,6 +275,15 @@ public class ChatPanel extends JPanel {
             });
             return null;
         });
+    }
+
+    private boolean containsItem(String value) {
+        for (int index = 0; index < modeSelector.getItemCount(); index++) {
+            if (value.equals(modeSelector.getItemAt(index))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void persistSelectedModel() {
@@ -274,9 +309,7 @@ public class ChatPanel extends JPanel {
 
     private void sendPrompt() {
         String prompt = promptInput.getText().trim();
-        if (prompt.isEmpty() || isProcessing) {
-            return;
-        }
+        if (prompt.isEmpty() || isProcessing) return;
         String selectedModel = getSelectedModel();
         if (selectedModel == null || selectedModel.isBlank()) {
             updateStatus("Select a model first", ORANGE);
@@ -290,78 +323,29 @@ public class ChatPanel extends JPanel {
         appendMessage("You", prompt, PRIMARY);
         appendThought("Thought for 0s", "Planning task graph...");
         taskOrchestrator.executeGoal(prompt, "lmstudio", new TaskOrchestrator.Listener() {
-            @Override
-            public void onPlanCreated(TaskPlan plan) {
-                SwingUtilities.invokeLater(() -> {
-                    activePlan = plan;
-                    rebuildTaskPanel();
-                    appendTaskPanel();
-                    updateStatus("Planning complete", BLUE);
-                });
+            @Override public void onPlanCreated(TaskPlan plan) {
+                SwingUtilities.invokeLater(() -> { activePlan = plan; rebuildTaskPanel(); appendTaskPanel(); updateStatus("Planning complete", BLUE); });
             }
-            @Override
-            public void onTaskStarted(AgentTask task) {
-                SwingUtilities.invokeLater(() -> {
-                    updateStatus("Running: " + task.getTitle(), ORANGE);
-                    appendThought("Working on: " + task.getTitle(), "Attempt " + task.getAttempts());
-                    rebuildTaskPanel();
-                });
+            @Override public void onTaskStarted(AgentTask task) {
+                SwingUtilities.invokeLater(() -> { updateStatus("Running: " + task.getTitle(), ORANGE); appendThought("Working on: " + task.getTitle(), "Attempt " + task.getAttempts()); rebuildTaskPanel(); });
             }
-            @Override
-            public void onTaskVerifying(AgentTask task) {
-                SwingUtilities.invokeLater(() -> {
-                    updateStatus("Verifying: " + task.getTitle(), ORANGE);
-                    appendThought("Verifying", task.getTitle());
-                    rebuildTaskPanel();
-                });
+            @Override public void onTaskVerifying(AgentTask task) {
+                SwingUtilities.invokeLater(() -> { updateStatus("Verifying: " + task.getTitle(), ORANGE); appendThought("Verifying", task.getTitle()); rebuildTaskPanel(); });
             }
-            @Override
-            public void onTaskCompleted(AgentTask task) {
-                SwingUtilities.invokeLater(() -> {
-                    rebuildTaskPanel();
-                    if (task.getLastResult() != null && !task.getLastResult().isBlank()) {
-                        lastResult = task.getLastResult();
-                        appendCodeResult(task.getTitle(), task.getLastResult());
-                    }
-                });
+            @Override public void onTaskCompleted(AgentTask task) {
+                SwingUtilities.invokeLater(() -> { rebuildTaskPanel(); if (task.getLastResult() != null && !task.getLastResult().isBlank()) { lastResult = task.getLastResult(); appendCodeResult(task.getTitle(), task.getLastResult()); } });
             }
-            @Override
-            public void onTaskFailed(AgentTask task) {
-                SwingUtilities.invokeLater(() -> {
-                    rebuildTaskPanel();
-                    appendThought("Task failed", task.getLastError());
-                    updateStatus("Task failed", RED);
-                });
+            @Override public void onTaskFailed(AgentTask task) {
+                SwingUtilities.invokeLater(() -> { rebuildTaskPanel(); appendThought("Task failed", task.getLastError()); updateStatus("Task failed", RED); });
             }
-            @Override
-            public void onReplanning(TaskPlan failedPlan) {
-                SwingUtilities.invokeLater(() -> {
-                    activePlan = failedPlan;
-                    rebuildTaskPanel();
-                    appendThought("Replanning", "Previous failure preserved as context");
-                    updateStatus("Replanning", ORANGE);
-                });
+            @Override public void onReplanning(TaskPlan failedPlan) {
+                SwingUtilities.invokeLater(() -> { activePlan = failedPlan; rebuildTaskPanel(); appendThought("Replanning", "Previous failure preserved as context"); updateStatus("Replanning", ORANGE); });
             }
-            @Override
-            public void onCompleted(TaskPlan plan) {
-                SwingUtilities.invokeLater(() -> {
-                    activePlan = plan;
-                    rebuildTaskPanel();
-                    appendThought("Objective completed", "All tasks verified");
-                    appendActions();
-                    updateStatus("Completed", GREEN);
-                    resetInputState();
-                });
+            @Override public void onCompleted(TaskPlan plan) {
+                SwingUtilities.invokeLater(() -> { activePlan = plan; rebuildTaskPanel(); appendThought("Objective completed", "All tasks verified"); appendActions(); updateStatus("Completed", GREEN); resetInputState(); });
             }
-            @Override
-            public void onFailed(String message, TaskPlan plan) {
-                SwingUtilities.invokeLater(() -> {
-                    activePlan = plan;
-                    rebuildTaskPanel();
-                    appendWarning(message);
-                    updateStatus("Failed", RED);
-                    resetInputState();
-                });
+            @Override public void onFailed(String message, TaskPlan plan) {
+                SwingUtilities.invokeLater(() -> { activePlan = plan; rebuildTaskPanel(); appendWarning(message); updateStatus("Failed", RED); resetInputState(); });
             }
         });
         promptInput.setText("");
@@ -428,6 +412,7 @@ public class ChatPanel extends JPanel {
         card.add(header, BorderLayout.NORTH);
         card.add(items, BorderLayout.CENTER);
         taskPanelHost.add(card, BorderLayout.CENTER);
+        taskPanelHost.setAlignmentX(LEFT_ALIGNMENT);
         taskPanelHost.revalidate();
         taskPanelHost.repaint();
     }
@@ -519,7 +504,11 @@ public class ChatPanel extends JPanel {
         JButton more = iconButton("…");
         more.setToolTipText("More options");
         more.addActionListener(event -> updateStatus("More options are reserved for the current response", SECONDARY));
-        actions.add(like); actions.add(dislike); actions.add(copy); actions.add(view); actions.add(more);
+        actions.add(like);
+        actions.add(dislike);
+        actions.add(copy);
+        actions.add(view);
+        actions.add(more);
         actions.setAlignmentX(LEFT_ALIGNMENT);
         conversationPanel.add(actions);
         conversationPanel.add(Box.createVerticalStrut(8));
@@ -527,7 +516,10 @@ public class ChatPanel extends JPanel {
     }
 
     private void copyLastResult() {
-        if (lastResult.isBlank()) { updateStatus("Nothing to copy", SECONDARY); return; }
+        if (lastResult.isBlank()) {
+            updateStatus("Nothing to copy", SECONDARY);
+            return;
+        }
         try {
             Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(lastResult), null);
             updateStatus("Result copied", GREEN);
@@ -625,7 +617,6 @@ public class ChatPanel extends JPanel {
         sendButton.setEnabled(true);
         promptInput.setEnabled(true);
         modeSelector.setEnabled(true);
-        refreshModels();
         promptInput.requestFocus();
     }
 
@@ -649,21 +640,33 @@ public class ChatPanel extends JPanel {
         refreshConversation();
     }
 
-    public LlmClient getLlmClient() { return llmClient; }
-    public boolean isProcessing() { return isProcessing; }
+    public LlmClient getLlmClient() {
+        return llmClient;
+    }
+
+    public boolean isProcessing() {
+        return isProcessing;
+    }
 
     private static final class DiffStats {
         private final int added;
         private final int removed;
         private final boolean newFile;
-        private DiffStats(int added, int removed, boolean newFile) { this.added = added; this.removed = removed; this.newFile = newFile; }
+
+        private DiffStats(int added, int removed, boolean newFile) {
+            this.added = added;
+            this.removed = removed;
+            this.newFile = newFile;
+        }
+
         private static DiffStats from(String value) {
             int added = find(POSITIVE_DIFF, value);
             int removed = find(NEGATIVE_DIFF, value);
             boolean newFile = value.contains("new file") || value.contains("@@");
             if (added == 0 && removed == 0) {
                 String[] lines = value.split("\\R", -1);
-                int additions = 0, deletions = 0;
+                int additions = 0;
+                int deletions = 0;
                 for (String line : lines) {
                     if (line.startsWith("+")) additions++;
                     if (line.startsWith("-")) deletions++;
@@ -673,6 +676,7 @@ public class ChatPanel extends JPanel {
             }
             return new DiffStats(added, removed, newFile);
         }
+
         private static int find(Pattern pattern, String value) {
             Matcher matcher = pattern.matcher(value);
             return matcher.find() ? Integer.parseInt(matcher.group(1)) : 0;
