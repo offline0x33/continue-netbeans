@@ -3,8 +3,11 @@ package com.bajinho.continuebeans.task;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.bajinho.continuebeans.LlmClient;
 import com.bajinho.continuebeans.ai.AIToolCallingIntegration;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
@@ -28,6 +31,25 @@ class ProjectContextTest {
         assertEquals(0, agent.calls.get());
         assertEquals(0, listener.replanningCount.get());
         assertTrue(listener.failureMessage.get().contains("Nenhum projeto aberto"));
+    }
+
+    @Test
+    void projectRequirementIsValidatedBeforeIntentRouting() {
+        ProjectContext context = mock(ProjectContext.class);
+        when(context.currentProjectRoot()).thenReturn(Optional.empty());
+        LlmClient classifier = mock(LlmClient.class);
+        when(classifier.shouldUseTaskOrchestrator("analise o projeto atual")).thenReturn(false);
+        RecordingAgent agent = new RecordingAgent();
+        TaskOrchestrator orchestrator = new TaskOrchestrator(
+                new TaskPlanner(), agent, classifier, context);
+        RecordingListener listener = new RecordingListener();
+
+        TaskPlan plan = orchestrator.executeGoal("analise o projeto atual", "test", listener).join();
+
+        assertEquals(TaskStatus.BLOCKED, plan.getTasks().get(0).getStatus());
+        assertEquals(0, agent.calls.get());
+        assertEquals(0, listener.replanningCount.get());
+        verify(classifier, never()).shouldUseTaskOrchestrator("analise o projeto atual");
     }
 
     @Test
