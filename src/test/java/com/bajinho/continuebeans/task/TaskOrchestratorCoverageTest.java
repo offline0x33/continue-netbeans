@@ -9,9 +9,12 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.bajinho.continuebeans.AgentMode;
 import com.bajinho.continuebeans.LlmClient;
 import com.bajinho.continuebeans.ai.AIToolCallingIntegration;
+import java.util.Collections;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.Test;
@@ -22,11 +25,10 @@ class TaskOrchestratorCoverageTest {
     void noProjectBlocksProjectGoalBeforeExecution() {
         LlmClient classifier = classifierReturning(true);
         AIToolCallingIntegration executor = mock(AIToolCallingIntegration.class);
-        ProjectContext context = () -> Optional.empty();
         RecordingListener listener = new RecordingListener();
 
         TaskOrchestrator orchestrator = new TaskOrchestrator(
-                new TaskPlanner(), executor, classifier, context);
+                new TaskPlanner(), executor, classifier, () -> Optional.empty());
 
         TaskPlan plan = orchestrator.executeGoal("analise o projeto atual", "test", listener).join();
 
@@ -80,10 +82,60 @@ class TaskOrchestratorCoverageTest {
         assertEquals(1, listener.failed.get());
     }
 
+    @Test
+    void hardExecutionFailureBlocksAfterPlannerCreatesPlan() {
+        LlmClient classifier = classifierReturning(true);
+        AIToolCallingIntegration executor = mock(AIToolCallingIntegration.class);
+        when(executor.processRequestWithToolCalling(anyString(), anyString()))
+                .thenReturn(CompletableFuture.completedFuture(
+                        AIToolCallingIntegration.AIResponse.error("Nenhum projeto aberto no NetBeans.")));
+        RecordingListener listener = new RecordingListener();
+
+        TaskPlanner planner = mock(TaskPlanner.class);
+        AgentTask task = new AgentTask("Executar", "execute", "DONE", Collections.emptyList());
+        TaskPlan expectedPlan = new TaskPlan("corrigir", Collections.singletonList(task));
+        when(planner.createPlan("corrigir")).thenReturn(expectedPlan);
+
+        TaskOrchestrator orchestrator = new TaskOrchestrator(
+                planner, executor, classifier, () -> Optional.of("/workspace"));
+
+        TaskPlan plan = orchestrator.executeGoal("corrigir", "test", listener).join();
+
+        assertFalse(plan.isComplete());
+        assertEquals(TaskStatus.BLOCKED, task.getStatus());
+        assertEquals(1, task.getAttempts());
+        assertTrue(task.getLastError().contains("Nenhum projeto aberto"));
+        assertEquals(1, listener.failed.get());
+    }
+
+    @Test
+    void executionFailureRetriesAndBlocksAfterThreeAttempts() {
+        LlmClient classifier = classifierReturning(true);
+        AIToolCallingIntegration executor = mock(AIToolCallingIntegration.class);
+        when(executor.processRequestWithToolCalling(anyString(), anyString()))
+                .thenReturn(CompletableFuture.completedFuture(
+                        AIToolCallingIntegration.AIResponse.text("resultado")));
+        RecordingListener listener = new RecordingListener();
+
+        TaskPlanner planner = mock(TaskPlanner.class);
+        AgentTask task = new AgentTask("Executar", "execute", "DONE", Collections.emptyList());
+        TaskPlan plan = new TaskPlan("corrigir", Collections.singletonList(task));
+        when(planner.createPlan("corrigir")).thenReturn(plan);
+
+        TaskOrchestrator orchestrator = new TaskOrchestrator(
+                planner, executor, classifier, () -> Optional.of("/workspace"));
+
+        TaskPlan result = orchestrator.executeGoal("corrigir", "test", listener).join();
+
+        assertEquals(TaskStatus.BLOCKED, result.getTasks().get(0).getStatus());
+        assertEquals(3, result.getTasks().get(0).getAttempts());
+        assertTrue(result.getTasks().get(0).getLastError().contains("Último erro"));
+    }
+
     private static LlmClient classifierReturning(boolean useTasks) {
         LlmClient classifier = mock(LlmClient.class);
         when(classifier.shouldUseTaskOrchestrator(anyString())).thenReturn(useTasks);
-        when(classifier.shouldUseTaskOrchestrator(anyString(), any())).thenReturn(useTasks);
+        when(classifier.shouldUseTaskOrchestrator(anyString(), any(AgentMode.class))).thenReturn(useTasks);
         return classifier;
     }
 
