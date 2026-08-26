@@ -71,6 +71,9 @@
         <dependency><groupId>org.netbeans.api</groupId><artifactId>org-netbeans-modules-editor</artifactId><version>${netbeans.version}</version></dependency>
         <dependency><groupId>org.netbeans.api</groupId><artifactId>org-netbeans-modules-editor-lib2</artifactId><version>${netbeans.version}</version></dependency>
         <dependency><groupId>org.netbeans.api</groupId><artifactId>org-netbeans-modules-projectapi</artifactId><version>${netbeans.version}</version></dependency>
+        <dependency><groupId>org.netbeans.api</groupId><artifactId>org-netbeans-modules-java-source</artifactId><version>${netbeans.version}</version></dependency>
+        <dependency><groupId>org.netbeans.api</groupId><artifactId>org-netbeans-modules-java-source-base</artifactId><version>${netbeans.version}</version></dependency>
+        <dependency><groupId>org.netbeans.api</groupId><artifactId>org-netbeans-modules-parsing-api</artifactId><version>${netbeans.version}</version></dependency>
         <dependency><groupId>com.fifesoft</groupId><artifactId>rsyntaxtextarea</artifactId><version>3.5.3</version></dependency>
         <dependency><groupId>com.google.code.gson</groupId><artifactId>gson</artifactId><version>2.10.1</version></dependency>
         <dependency><groupId>org.netbeans.api</groupId><artifactId>org-netbeans-modules-options-api</artifactId><version>${netbeans.version}</version></dependency>
