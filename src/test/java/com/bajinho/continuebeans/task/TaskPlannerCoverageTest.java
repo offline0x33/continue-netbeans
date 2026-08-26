@@ -42,7 +42,8 @@ class TaskPlannerCoverageTest {
         TaskPlan plan = planner.parsePlan("goal", json);
 
         assertEquals(2, plan.getTasks().size());
-        assertEquals(plan.getTasks().get(0).getId(), plan.getTasks().get(1).getDependsOn().get(0));
+        assertEquals(1, plan.getTasks().get(1).getDependencies().size());
+        assertEquals(plan.getTasks().get(0).getId(), plan.getTasks().get(1).getDependencies().get(0));
     }
 
     @Test
