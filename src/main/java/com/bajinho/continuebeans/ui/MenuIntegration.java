@@ -29,10 +29,10 @@ import org.openide.util.NbBundle;
 /**
  * Menu integration for Continue Beans AI Assistant.
  * Provides access to the AI assistant through the NetBeans Tools menu.
- * 
+ *
  * <p>This class follows Apache NetBeans menu integration patterns and
  * implements proper localization and action registration.</p>
- * 
+ *
  * @see ProfessionalTopComponent
  * @see ToolbarAction
  */
@@ -53,25 +53,16 @@ import org.openide.util.NbBundle;
     "CTL_Menu_Description=Open AI-powered development assistant"
 })
 public final class MenuIntegration implements ActionListener {
-    
-    /**
-     * Creates a new instance of the menu integration action.
-     * 
-     * @return a JMenuItem configured for the Continue Beans menu entry
-     */
+
     public static JMenuItem create() {
-        JMenuItem menuItem = new JMenuItem(Bundle.CTL_Menu_Access());
-        menuItem.setToolTipText(Bundle.CTL_Menu_Description());
+        JMenuItem menuItem = new JMenuItem(
+            NbBundle.getMessage(MenuIntegration.class, "CTL_Menu_Access"));
+        menuItem.setToolTipText(
+            NbBundle.getMessage(MenuIntegration.class, "CTL_Menu_Description"));
         menuItem.addActionListener(new MenuIntegration());
         return menuItem;
     }
-    
-    /**
-     * Handles the menu action event.
-     * Opens the Continue Beans AI Assistant window.
-     * 
-     * @param e the action event
-     */
+
     @Override
     public void actionPerformed(ActionEvent e) {
         ProfessionalTopComponent window = ProfessionalTopComponent.findInstance();
