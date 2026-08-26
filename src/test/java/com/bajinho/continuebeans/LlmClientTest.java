@@ -211,16 +211,24 @@ class LlmClientTest {
     }
 
     @Test
-    void testPerguntarIAStreamingDefaultsToSettingsModel() {
+    void testPerguntarIAStreamingDefaultsToSettingsModel() throws Exception {
         try (MockedStatic<ContinueSettings> settingsMock = mockStatic(ContinueSettings.class)) {
             settingsMock.when(ContinueSettings::getModel).thenReturn("settings-model");
-            settingsMock.when(ContinueSettings::getApiUrl).thenReturn("http://localhost:1234");
+            settingsMock.when(ContinueSettings::getApiUrl)
+                    .thenReturn("http://127.0.0.1:1/v1/chat/completions");
 
             Throwable[] error = {null};
+            CountDownLatch completion = new CountDownLatch(1);
             client.perguntarIAStreaming("ctx", "q", null, "Code",
-                    chunk -> {}, err -> error[0] = err, () -> {});
+                    chunk -> {},
+                    err -> {
+                        error[0] = err;
+                        completion.countDown();
+                    },
+                    completion::countDown);
 
-            assertNotNull(error[0], "The configured model should pass the model guard even when the provider is unavailable");
+            assertTrue(completion.await(5, TimeUnit.SECONDS), "Streaming callback should finish");
+            assertNotNull(error[0], "Configured model must pass the model guard and reach the provider");
             assertFalse(error[0].getMessage().contains("Modelo não selecionado"));
         }
     }
