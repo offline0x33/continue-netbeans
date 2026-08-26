@@ -81,6 +81,15 @@ public class LlmClient {
             return toolCallingIntegration.processRequestWithToolCalling(perguntaUsuario, "lmstudio")
                     .thenApply(AIToolCallingIntegration.AIResponse::getContent);
         }
+        if (ContinueSettings.getChatTransportMode() == ChatTransportMode.STREAM) {
+            CompletableFuture<String> response = new CompletableFuture<>();
+            StringBuilder content = new StringBuilder();
+            provider.stream(contextoCodigo, perguntaUsuario, selectedModel, mode,
+                    chunk -> content.append(chunk),
+                    response::completeExceptionally,
+                    () -> response.complete(content.toString()));
+            return response;
+        }
         return provider.ask(contextoCodigo, perguntaUsuario, selectedModel, mode);
     }
 
