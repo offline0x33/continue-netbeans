@@ -1,6 +1,9 @@
 package com.bajinho.continuebeans.task;
 
+import com.bajinho.continuebeans.LlmClient;
 import com.bajinho.continuebeans.ai.AIToolCallingIntegration;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -23,14 +26,20 @@ public final class TaskOrchestrator {
 
     private final TaskPlanner planner;
     private final AIToolCallingIntegration executor;
+    private final LlmClient intentClassifier;
 
     public TaskOrchestrator() {
-        this(new TaskPlanner(), new AIToolCallingIntegration());
+        this(new TaskPlanner(), new AIToolCallingIntegration(), new LlmClient());
     }
 
     public TaskOrchestrator(TaskPlanner planner, AIToolCallingIntegration executor) {
+        this(planner, executor, new LlmClient());
+    }
+
+    TaskOrchestrator(TaskPlanner planner, AIToolCallingIntegration executor, LlmClient intentClassifier) {
         this.planner = planner;
         this.executor = executor;
+        this.intentClassifier = intentClassifier;
     }
 
     public CompletableFuture<TaskPlan> executeGoal(String goal, String provider, Listener listener) {
@@ -39,6 +48,10 @@ public final class TaskOrchestrator {
             String planningGoal = goal;
             int replans = 0;
             try {
+                if (!intentClassifier.shouldUseTaskOrchestrator(goal)) {
+                    return executeConversation(goal, provider, listener);
+                }
+
                 while (replans <= MAX_REPLANS) {
                     plan = planner.createPlan(planningGoal);
                     listener.onPlanCreated(plan);
@@ -70,6 +83,33 @@ public final class TaskOrchestrator {
                 throw new RuntimeException(message, e);
             }
         });
+    }
+
+    private TaskPlan executeConversation(String message, String provider, Listener listener) {
+        AgentTask responseTask = new AgentTask(
+                "Assistant",
+                message,
+                "A resposta conversacional foi gerada pelo modelo.",
+                Collections.<String>emptyList());
+        TaskPlan plan = new TaskPlan(message, Collections.singletonList(responseTask));
+
+        listener.onPlanCreated(plan);
+        listener.onTaskStarted(responseTask);
+
+        AIToolCallingIntegration.AIResponse response = executor
+                .processRequestWithToolCalling(message, provider)
+                .join();
+        if ("error".equalsIgnoreCase(response.getType())) {
+            responseTask.fail(response.getContent());
+            listener.onTaskFailed(responseTask);
+            listener.onFailed(response.getContent(), plan);
+            return plan;
+        }
+
+        responseTask.complete(response.getContent());
+        listener.onTaskCompleted(responseTask);
+        listener.onCompleted(plan);
+        return plan;
     }
 
     private void executePlan(TaskPlan plan, String provider, Listener listener) {
