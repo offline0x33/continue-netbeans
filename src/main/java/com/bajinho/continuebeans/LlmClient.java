@@ -12,6 +12,15 @@ import java.util.regex.Pattern;
 public class LlmClient {
 
     private static final Pattern ABSOLUTE_PATH_PATTERN = Pattern.compile("(?:^|\\s)(?:/home/|/workspace/|/tmp/|/opt/|/var/|[A-Za-z]:\\\\)");
+    private static final String TASK_INTENT_WORDS = String.join("|",
+            "crie", "criar", "create", "implement", "implemente", "implementar", "adicione", "adicionar",
+            "add", "remova", "remover", "remove", "edite", "editar", "edit", "altere", "alterar", "modify",
+            "corrija", "corrigir", "fix", "conserte", "refatore", "refatorar", "refactor", "analise", "analisar",
+            "analyse", "read", "leia", "ler", "liste", "listar", "list", "abra", "abrir", "open", "build",
+            "compile", "compile", "teste", "testar", "test", "execute", "executa", "executar", "run", "rode",
+            "rodar", "configure", "configurar", "deploy", "commit", "git", "projeto", "workspace", "arquivo", "arquivos",
+            "file", "files", "código", "codigo", "code", "classe", "método", "metodo", "function", "função", "funcao",
+            "endpoint", "api", "dependência", "dependencia", "pom", "maven", "sonar", "ci", "pipeline");
 
     private final HttpClient client;
     private final Gson gson;
@@ -26,7 +35,6 @@ public class LlmClient {
                 .build();
         this.gson = new Gson();
         this.toolCallingIntegration = new AIToolCallingIntegration();
-        // Inicialmente defaulting para LM Studio, mas pronto para expansão
         this.provider = new LmStudioProvider(client, gson);
     }
 
@@ -76,11 +84,30 @@ public class LlmClient {
         return provider.ask(contextoCodigo, perguntaUsuario, selectedModel, mode);
     }
 
-    /**
-     * Execute an explicit workspace request through the real NetBeans tool layer.
-     * This is intentionally limited to requests that clearly ask the model to inspect
-     * or mutate files/project state, so ordinary chat keeps the existing streaming provider path.
-     */
+    /** Returns true when the request clearly describes engineering/workspace work. */
+    boolean shouldUseTaskOrchestrator(String message) {
+        if (message == null || message.isBlank()) {
+            return false;
+        }
+        String normalized = message.toLowerCase(java.util.Locale.ROOT);
+        if (normalized.contains("@file:") || normalized.contains("@codebase")) {
+            return true;
+        }
+        if (ABSOLUTE_PATH_PATTERN.matcher(message).find()) {
+            return true;
+        }
+        String compact = normalized.replaceAll("[^\\p{L}\\p{N}_-]+", " ").trim();
+        if (compact.isEmpty()) {
+            return false;
+        }
+        for (String word : compact.split("\\s+")) {
+            if (word.matches(TASK_INTENT_WORDS)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     boolean shouldUseWorkspaceTools(String message) {
         if (message == null || message.isBlank()) {
             return false;
