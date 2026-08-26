@@ -10,12 +10,16 @@ import com.google.gson.JsonObject;
  */
 public class PayloadValidator {
 
+    private static final double MIN_TEMPERATURE = 0.0;
+    private static final double MAX_TEMPERATURE = 2.0;
+    private static final String[] CHAT_ROLES = {"system", "user", "assistant", "tool"};
+
     /**
      * Validates a chat/messages format payload.
-     * Must have: model, temperature, stream, messages[] array
+     * Must have: model, temperature, stream, messages[] array.
      */
     public static boolean isValidChatPayload(JsonObject payload) {
-        if (!payload.has("model") || !payload.has("temperature") || !payload.has("stream")) {
+        if (!hasCommonFields(payload)) {
             return false;
         }
 
@@ -30,16 +34,20 @@ public class PayloadValidator {
 
         JsonArray messages = messagesElement.getAsJsonArray();
         if (messages.size() == 0) {
-            return false; // Must have at least one message
+            return false;
         }
 
-        // Validate each message has role and content
         for (JsonElement msg : messages) {
             if (!msg.isJsonObject()) {
                 return false;
             }
             JsonObject msgObj = msg.getAsJsonObject();
             if (!msgObj.has("role") || !msgObj.has("content")) {
+                return false;
+            }
+            if (!msgObj.get("role").isJsonPrimitive()
+                    || !msgObj.getAsJsonPrimitive("role").isString()
+                    || !isValidRole(msgObj.get("role").getAsString())) {
                 return false;
             }
         }
@@ -49,10 +57,10 @@ public class PayloadValidator {
 
     /**
      * Validates a completions/prompt format payload.
-     * Must have: model, temperature, stream, prompt (string)
+     * Must have: model, temperature, stream, prompt (string).
      */
     public static boolean isValidCompletionPayload(JsonObject payload) {
-        if (!payload.has("model") || !payload.has("temperature") || !payload.has("stream")) {
+        if (!hasCommonFields(payload)) {
             return false;
         }
 
@@ -62,6 +70,36 @@ public class PayloadValidator {
 
         JsonElement promptElement = payload.get("prompt");
         return promptElement.isJsonPrimitive() && promptElement.getAsJsonPrimitive().isString();
+    }
+
+    private static boolean hasCommonFields(JsonObject payload) {
+        if (payload == null || !payload.has("model") || !payload.has("temperature") || !payload.has("stream")) {
+            return false;
+        }
+
+        JsonElement model = payload.get("model");
+        if (!model.isJsonPrimitive() || !model.getAsJsonPrimitive().isString()
+                || model.getAsString().trim().isEmpty()) {
+            return false;
+        }
+
+        JsonElement temperature = payload.get("temperature");
+        if (!temperature.isJsonPrimitive() || !temperature.getAsJsonPrimitive().isNumber()) {
+            return false;
+        }
+
+        double value = temperature.getAsDouble();
+        return !Double.isNaN(value) && !Double.isInfinite(value)
+                && value >= MIN_TEMPERATURE && value <= MAX_TEMPERATURE;
+    }
+
+    private static boolean isValidRole(String role) {
+        for (String allowedRole : CHAT_ROLES) {
+            if (allowedRole.equalsIgnoreCase(role)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -102,7 +140,8 @@ public class PayloadValidator {
         }
 
         JsonObject firstMsg = messages.get(0).getAsJsonObject();
-        if (!"system".equalsIgnoreCase(firstMsg.get("role").getAsString())) {
+        if (!firstMsg.has("role") || !firstMsg.has("content")
+                || !"system".equalsIgnoreCase(firstMsg.get("role").getAsString())) {
             return false;
         }
 
