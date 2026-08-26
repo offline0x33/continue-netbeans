@@ -23,6 +23,9 @@ public final class TaskOrchestrator {
 
     private static final int MAX_TASK_ATTEMPTS = 3;
     private static final int MAX_REPLANS = 2;
+    private static final String NO_PROJECT_MESSAGE =
+            "Nenhum projeto aberto no NetBeans. Abra um projeto (File → Open Project) para que eu possa "
+                    + "analisar arquivos, executar tarefas de código ou falar sobre o workspace atual.";
 
     private final TaskPlanner planner;
     private final AIToolCallingIntegration executor;
@@ -68,13 +71,17 @@ public final class TaskOrchestrator {
             try {
                 refreshProjectContext();
 
-                if (requiresProjectContext(goal) && currentProjectRoot().isEmpty()) {
-                    return failWithoutExecution(goal, listener,
-                            "Nenhum projeto aberto no NetBeans. Abra um projeto antes de pedir uma análise do projeto.");
+                // Conversational / informational path first — never enter task/replan loops.
+                if (intentClassifier != null && !intentClassifier.shouldUseTaskOrchestrator(goal)) {
+                    if (mentionsProject(goal) && currentProjectRoot().isEmpty()) {
+                        return executeConversationWithNote(goal, provider, listener, NO_PROJECT_MESSAGE);
+                    }
+                    return executeConversation(goal, provider, listener);
                 }
 
-                if (intentClassifier != null && !intentClassifier.shouldUseTaskOrchestrator(goal)) {
-                    return executeConversation(goal, provider, listener);
+                // Engineering goals that need a project: fail fast instead of retrying tools blindly.
+                if (requiresProjectContext(goal) && currentProjectRoot().isEmpty()) {
+                    return failWithoutExecution(goal, listener, NO_PROJECT_MESSAGE);
                 }
 
                 while (replans <= MAX_REPLANS) {
@@ -92,8 +99,15 @@ public final class TaskOrchestrator {
                         return plan;
                     }
 
+                    // Missing project context is not recoverable by replanning.
+                    if (isMissingProjectFailure(plan) || currentProjectRoot().isEmpty() && requiresProjectContext(goal)) {
+                        listener.onFailed(NO_PROJECT_MESSAGE, plan);
+                        return plan;
+                    }
+
                     if (replans == MAX_REPLANS) {
-                        listener.onFailed("Limite de replanejamentos atingido.", plan);
+                        listener.onFailed("Limite de replanejamentos atingido. "
+                                + "Tente reformular o pedido ou abra um projeto no NetBeans.", plan);
                         return plan;
                     }
 
@@ -128,6 +142,15 @@ public final class TaskOrchestrator {
         return plan;
     }
 
+    private boolean mentionsProject(String goal) {
+        if (goal == null) {
+            return false;
+        }
+        String n = goal.toLowerCase(Locale.ROOT);
+        return n.contains("projeto") || n.contains("project") || n.contains("workspace")
+                || n.contains("código") || n.contains("codigo") || n.contains("codebase");
+    }
+
     private boolean requiresProjectContext(String goal) {
         if (goal == null) {
             return false;
@@ -142,9 +165,56 @@ public final class TaskOrchestrator {
                 || normalized.contains("analyze project")
                 || normalized.contains("código do projeto")
                 || normalized.contains("codigo do projeto")
+                || normalized.contains("desse projeto")
+                || normalized.contains("deste projeto")
+                || normalized.contains("sobre o projeto")
+                || normalized.contains("do projeto")
+                || normalized.contains("no projeto")
                 || normalized.contains("workspace")
                 || normalized.contains("pom.xml")
-                || normalized.contains("build.gradle");
+                || normalized.contains("build.gradle")
+                || normalized.contains("@codebase")
+                || normalized.contains("@file:");
+    }
+
+    private boolean isMissingProjectFailure(TaskPlan plan) {
+        if (plan == null) {
+            return false;
+        }
+        for (AgentTask task : plan.getTasks()) {
+            String error = task.getLastError();
+            if (error == null) {
+                continue;
+            }
+            String lower = error.toLowerCase(Locale.ROOT);
+            if (lower.contains("nenhum projeto")
+                    || lower.contains("no project")
+                    || lower.contains("workspace root")
+                    || lower.contains("projeto aberto")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private TaskPlan executeConversationWithNote(String message, String provider, Listener listener, String note) {
+        AgentTask responseTask = new AgentTask(
+                "Assistant",
+                message,
+                "A resposta conversacional foi gerada pelo modelo.",
+                Collections.<String>emptyList());
+        TaskPlan plan = new TaskPlan(message, Collections.singletonList(responseTask));
+
+        listener.onPlanCreated(plan);
+        listener.onTaskStarted(responseTask);
+
+        String content = note + "\n\nEnquanto isso, posso ajudar com dúvidas gerais sobre Java, NetBeans, Maven, etc.";
+        conversationManager.addMessage("user", message);
+        conversationManager.addMessage("assistant", content);
+        responseTask.complete(content);
+        listener.onTaskCompleted(responseTask);
+        listener.onCompleted(plan);
+        return plan;
     }
 
     private TaskPlan executeConversation(String message, String provider, Listener listener) {
@@ -163,14 +233,20 @@ public final class TaskOrchestrator {
                 .processRequestWithToolCalling(conversationManager.getMessagesArray(), provider)
                 .join();
         if ("error".equalsIgnoreCase(response.getType())) {
-            responseTask.fail(response.getContent());
+            String error = response.getContent() == null || response.getContent().isBlank()
+                    ? "Falha ao gerar resposta conversacional."
+                    : response.getContent();
+            responseTask.fail(error);
             listener.onTaskFailed(responseTask);
-            listener.onFailed(response.getContent(), plan);
+            listener.onFailed(error, plan);
             return plan;
         }
 
-        conversationManager.addMessage("assistant", response.getContent());
-        responseTask.complete(response.getContent());
+        String content = response.getContent() == null || response.getContent().isBlank()
+                ? "Não consegui gerar uma resposta neste momento."
+                : response.getContent();
+        conversationManager.addMessage("assistant", content);
+        responseTask.complete(content);
         listener.onTaskCompleted(responseTask);
         listener.onCompleted(plan);
         return plan;
@@ -194,34 +270,64 @@ public final class TaskOrchestrator {
                 AIToolCallingIntegration.AIResponse response = executor
                         .processRequestWithToolCalling(buildTaskPrompt(plan, task), provider)
                         .join();
-                if ("error".equalsIgnoreCase(response.getType())) {
-                    task.fail(response.getContent());
+                if (response == null || "error".equalsIgnoreCase(response.getType())) {
+                    String error = response == null || response.getContent() == null || response.getContent().isBlank()
+                            ? "Falha ao executar a tarefa (resposta vazia do provedor AI)."
+                            : response.getContent();
+                    task.fail(error);
                     listener.onTaskFailed(task);
+                    // Hard failures (missing project / config) should not burn all retries silently.
+                    if (isHardFailure(error)) {
+                        task.block(error);
+                        return;
+                    }
                     continue;
                 }
 
-                task.verifying(response.getContent());
+                String executionResult = response.getContent() == null ? "" : response.getContent();
+                task.verifying(executionResult);
                 listener.onTaskVerifying(task);
                 AIToolCallingIntegration.AIResponse verification = executor
-                        .processRequestWithToolCalling(buildVerificationPrompt(plan, task, response.getContent()), provider)
+                        .processRequestWithToolCalling(buildVerificationPrompt(plan, task, executionResult), provider)
                         .join();
-                String verdict = verification.getContent() == null ? "" : verification.getContent().trim();
+                String verdict = verification == null || verification.getContent() == null
+                        ? ""
+                        : verification.getContent().trim();
 
                 if (isDoneVerdict(verdict)) {
-                    task.complete(response.getContent());
+                    task.complete(executionResult);
                     listener.onTaskCompleted(task);
                     completed = true;
                 } else {
-                    task.fail("Verificação falhou: " + truncate(verdict, 500));
+                    String failMsg = verdict.isBlank()
+                            ? "Verificação falhou: o verificador não retornou DONE."
+                            : "Verificação falhou: " + truncate(verdict, 500);
+                    task.fail(failMsg);
                     listener.onTaskFailed(task);
                 }
             }
 
             if (!completed) {
-                task.block("Não foi possível concluir a tarefa após " + MAX_TASK_ATTEMPTS + " tentativas.");
+                String blockReason = task.getLastError() == null || task.getLastError().isBlank()
+                        ? "Não foi possível concluir a tarefa após " + MAX_TASK_ATTEMPTS + " tentativas."
+                        : "Não foi possível concluir a tarefa após " + MAX_TASK_ATTEMPTS
+                                + " tentativas. Último erro: " + task.getLastError();
+                task.block(blockReason);
                 return;
             }
         }
+    }
+
+    private boolean isHardFailure(String error) {
+        if (error == null) {
+            return false;
+        }
+        String lower = error.toLowerCase(Locale.ROOT);
+        return lower.contains("nenhum projeto")
+                || lower.contains("no project")
+                || lower.contains("url da api")
+                || lower.contains("modelo ai não configurado")
+                || lower.contains("não configurado");
     }
 
     private String buildReplanGoal(String originalGoal, TaskPlan failedPlan) {

@@ -12,15 +12,24 @@ import java.util.regex.Pattern;
 public class LlmClient {
 
     private static final Pattern ABSOLUTE_PATH_PATTERN = Pattern.compile("(?:^|\\s)(?:/home/|/workspace/|/tmp/|/opt/|/var/|[A-Za-z]:\\\\)");
-    private static final String TASK_INTENT_WORDS = String.join("|",
+
+    /** Action verbs that indicate real engineering work — not passive nouns like "projeto". */
+    private static final String TASK_ACTION_WORDS = String.join("|",
             "crie", "criar", "create", "implement", "implemente", "implementar", "adicione", "adicionar",
             "add", "remova", "remover", "remove", "edite", "editar", "edit", "altere", "alterar", "modify",
             "corrija", "corrigir", "fix", "conserte", "refatore", "refatorar", "refactor", "analise", "analisar",
-            "analyse", "read", "leia", "ler", "liste", "listar", "list", "abra", "abrir", "open", "build",
-            "compile", "compile", "teste", "testar", "test", "execute", "executa", "executar", "run", "rode",
-            "rodar", "configure", "configurar", "deploy", "commit", "git", "projeto", "workspace", "arquivo", "arquivos",
-            "file", "files", "código", "codigo", "code", "classe", "método", "metodo", "function", "função", "funcao",
-            "endpoint", "api", "dependência", "dependencia", "pom", "maven", "sonar", "ci", "pipeline");
+            "analyse", "analyze", "read", "leia", "ler", "liste", "listar", "list", "abra", "abrir", "open", "build",
+            "compile", "teste", "testar", "test", "execute", "executa", "executar", "run", "rode",
+            "rodar", "configure", "configurar", "deploy", "commit", "git", "instale", "instalar", "install",
+            "gere", "gerar", "generate", "escreva", "escrever", "write", "apague", "apagar", "delete",
+            "renomeie", "renomear", "rename", "mova", "mover", "move");
+
+    private static final Pattern INFORMATIONAL_PATTERN = Pattern.compile(
+            "(?i)^\\s*(olá|ola|oi|hey|hi|hello|bom dia|boa tarde|boa noite|"
+                    + "como (você|voce) está|como vai|"
+                    + "(me )?(fale|diga|conte|explique|descreva|mostre)( (sobre|desse|deste|do|da|o|a))?|"
+                    + "o que (é|e|são|sao)|quem (é|e)|para que serve|"
+                    + "(what|who|how|why|when|where)\\b).*$");
 
     private final HttpClient client;
     private final Gson gson;
@@ -84,24 +93,57 @@ public class LlmClient {
         return provider.ask(contextoCodigo, perguntaUsuario, selectedModel, mode);
     }
 
-    /** Returns true when the request clearly describes engineering/workspace work. */
+    /**
+     * Returns true only when the request clearly describes engineering/workspace work
+     * that should go through the task orchestrator.
+     * Greetings and informational questions stay on the conversational path.
+     */
     public boolean shouldUseTaskOrchestrator(String message) {
         if (message == null || message.isBlank()) {
             return false;
         }
-        String normalized = message.toLowerCase(java.util.Locale.ROOT);
+        String normalized = message.toLowerCase(java.util.Locale.ROOT).trim();
+
+        if (isInformationalOrGreeting(normalized)) {
+            return false;
+        }
+
         if (normalized.contains("@file:") || normalized.contains("@codebase")) {
             return true;
         }
         if (ABSOLUTE_PATH_PATTERN.matcher(message).find()) {
             return true;
         }
+
         String compact = normalized.replaceAll("[^\\p{L}\\p{N}_-]+", " ").trim();
         if (compact.isEmpty()) {
             return false;
         }
         for (String word : compact.split("\\s+")) {
-            if (word.matches(TASK_INTENT_WORDS)) {
+            if (word.matches(TASK_ACTION_WORDS)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isInformationalOrGreeting(String normalized) {
+        if (INFORMATIONAL_PATTERN.matcher(normalized).matches()) {
+            return true;
+        }
+        // Short pure-Q&A about the project without an engineering verb stays conversational.
+        if (normalized.matches(".*\\b(projeto|project|workspace|código|codigo|code)\\b.*")
+                && !hasActionVerb(normalized)
+                && normalized.matches(".*\\b(fale|diga|conte|explique|descreva|mostre|sobre|o que|qual|quais)\\b.*")) {
+            return true;
+        }
+        return false;
+    }
+
+    private boolean hasActionVerb(String normalized) {
+        String compact = normalized.replaceAll("[^\\p{L}\\p{N}_-]+", " ").trim();
+        for (String word : compact.split("\\s+")) {
+            if (word.matches(TASK_ACTION_WORDS)) {
                 return true;
             }
         }

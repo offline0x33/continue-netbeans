@@ -231,6 +231,7 @@ class LlmClientTest {
         assertFalse(client.shouldUseTaskOrchestrator("Olá"));
         assertFalse(client.shouldUseTaskOrchestrator("Como você está?"));
         assertFalse(client.shouldUseTaskOrchestrator("me explique o que é dependency injection"));
+        assertFalse(client.shouldUseTaskOrchestrator("me fale desse projeto"));
     }
 
     @Test
