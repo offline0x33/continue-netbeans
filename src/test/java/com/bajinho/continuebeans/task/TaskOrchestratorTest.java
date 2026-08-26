@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -20,6 +21,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
@@ -58,6 +60,15 @@ class TaskOrchestratorTest {
     void orchestratorAnswersConversationalMessageWithoutPlannerRetries() {
         LlmClient classifier = mock(LlmClient.class);
         when(classifier.shouldUseTaskOrchestrator(anyString())).thenReturn(false);
+        doAnswer(invocation -> {
+            Consumer<String> onChunk = invocation.getArgument(4);
+            Runnable onComplete = invocation.getArgument(6);
+            onChunk.accept("Olá! Como posso ajudar?");
+            onComplete.run();
+            return null;
+        }).when(classifier).perguntarIAStreaming(
+                anyString(), anyString(), anyString(), anyString(), any(), any(), any(Runnable.class));
+
         RecordingAgent agent = new RecordingAgent(new String[] {"Olá! Como posso ajudar?"});
         TaskOrchestrator orchestrator = new TaskOrchestrator(
                 new TaskPlanner(HttpClient.newHttpClient(), "http://unused", "test"), agent, classifier);
