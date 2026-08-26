@@ -13,7 +13,6 @@ public class LlmClient {
 
     private static final Pattern ABSOLUTE_PATH_PATTERN = Pattern.compile("(?:^|\\s)(?:/home/|/workspace/|/tmp/|/opt/|/var/|[A-Za-z]:\\\\)");
 
-    /** Action verbs that indicate real engineering work — not passive nouns like "projeto". */
     private static final String TASK_ACTION_WORDS = String.join("|",
             "crie", "criar", "create", "implement", "implemente", "implementar", "adicione", "adicionar",
             "add", "remova", "remover", "remove", "edite", "editar", "edit", "altere", "alterar", "modify",
@@ -60,7 +59,11 @@ public class LlmClient {
             return;
         }
 
-        if (shouldUseWorkspaceTools(perguntaUsuario)) {
+        // Docs/Planning must stay chat-only: never route to workspace tool calling.
+        AgentMode agentMode = mode == null || mode.isBlank()
+                ? ContinueSettings.getAgentMode()
+                : AgentMode.fromLabel(mode);
+        if (!agentMode.isChatOnly() && shouldUseWorkspaceTools(perguntaUsuario)) {
             toolCallingIntegration.setWorkspaceRoot(EditorUtils.getCurrentProjectDirectory());
             toolCallingIntegration.processRequestWithToolCalling(perguntaUsuario, "lmstudio")
                     .thenAccept(response -> {
@@ -85,7 +88,10 @@ public class LlmClient {
     public CompletableFuture<String> perguntarIAAsync(String contextoCodigo, String perguntaUsuario, String model,
             String mode) {
         String selectedModel = model != null ? model : ContinueSettings.getModel();
-        if (shouldUseWorkspaceTools(perguntaUsuario)) {
+        AgentMode agentMode = mode == null || mode.isBlank()
+                ? ContinueSettings.getAgentMode()
+                : AgentMode.fromLabel(mode);
+        if (!agentMode.isChatOnly() && shouldUseWorkspaceTools(perguntaUsuario)) {
             toolCallingIntegration.setWorkspaceRoot(EditorUtils.getCurrentProjectDirectory());
             return toolCallingIntegration.processRequestWithToolCalling(perguntaUsuario, "lmstudio")
                     .thenApply(AIToolCallingIntegration.AIResponse::getContent);
@@ -94,20 +100,36 @@ public class LlmClient {
     }
 
     /**
-     * Returns true only when the request clearly describes engineering/workspace work
-     * that should go through the task orchestrator.
-     * Greetings and informational questions stay on the conversational path.
+     * Mode-aware routing: whether this message should enter the task orchestrator.
      */
     public boolean shouldUseTaskOrchestrator(String message) {
+        return shouldUseTaskOrchestrator(message, ContinueSettings.getAgentMode());
+    }
+
+    public boolean shouldUseTaskOrchestrator(String message, AgentMode mode) {
+        AgentMode effective = mode == null ? ContinueSettings.getAgentMode() : mode;
+
+        if (effective.isChatOnly()) {
+            return false;
+        }
+
         if (message == null || message.isBlank()) {
             return false;
         }
+
         String normalized = message.toLowerCase(java.util.Locale.ROOT).trim();
 
+        // Greetings / pure Q&A never become a task plan in any mode.
         if (isInformationalOrGreeting(normalized)) {
             return false;
         }
 
+        if (effective.prefersTaskGraph()) {
+            // Agent mode: any non-informational request becomes a task plan.
+            return true;
+        }
+
+        // CODE (hybrid): only clear engineering intents.
         if (normalized.contains("@file:") || normalized.contains("@codebase")) {
             return true;
         }
@@ -131,7 +153,6 @@ public class LlmClient {
         if (INFORMATIONAL_PATTERN.matcher(normalized).matches()) {
             return true;
         }
-        // Short pure-Q&A about the project without an engineering verb stays conversational.
         if (normalized.matches(".*\\b(projeto|project|workspace|código|codigo|code)\\b.*")
                 && !hasActionVerb(normalized)
                 && normalized.matches(".*\\b(fale|diga|conte|explique|descreva|mostre|sobre|o que|qual|quais)\\b.*")) {
