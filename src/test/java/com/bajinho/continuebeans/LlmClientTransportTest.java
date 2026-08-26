@@ -1,7 +1,6 @@
 package com.bajinho.continuebeans;
 
 import java.lang.reflect.Field;
-import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
