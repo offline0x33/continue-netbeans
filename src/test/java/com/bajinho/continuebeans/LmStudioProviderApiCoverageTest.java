@@ -152,7 +152,7 @@ class LmStudioProviderApiCoverageTest {
         });
         ContinueSettings.setApiUrl(serverUrl() + "/v1/chat/completions");
         new LmStudioProvider(HttpClient.newHttpClient(), new Gson()).stream("", "q", "m", "Code",
-                retryContent::set, error, retryDone::countDown);
+                retryContent::set, error::set, retryDone::countDown);
         assertTrue(retryDone.await(2, TimeUnit.SECONDS));
         assertEquals(2, calls.get());
         assertEquals("ok", retryContent.get());
