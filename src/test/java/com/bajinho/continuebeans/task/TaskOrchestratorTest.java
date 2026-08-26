@@ -3,6 +3,7 @@ package com.bajinho.continuebeans.task;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -170,6 +171,15 @@ class TaskOrchestratorTest {
 
         @Override
         public CompletableFuture<AIResponse> processRequestWithToolCalling(String userMessage, String provider) {
+            return nextResponse();
+        }
+
+        @Override
+        public CompletableFuture<AIResponse> processRequestWithToolCalling(JsonArray messages, String provider) {
+            return nextResponse();
+        }
+
+        private CompletableFuture<AIResponse> nextResponse() {
             int index = calls.getAndIncrement();
             String result = results[Math.min(index, results.length - 1)];
             return CompletableFuture.completedFuture(AIResponse.text(result));
