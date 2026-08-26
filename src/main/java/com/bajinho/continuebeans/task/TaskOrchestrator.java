@@ -71,17 +71,15 @@ public final class TaskOrchestrator {
             try {
                 refreshProjectContext();
 
-                // Conversational / informational path first — never enter task/replan loops.
-                if (intentClassifier != null && !intentClassifier.shouldUseTaskOrchestrator(goal)) {
-                    if (mentionsProject(goal) && currentProjectRoot().isEmpty()) {
-                        return executeConversationWithNote(goal, provider, listener, NO_PROJECT_MESSAGE);
-                    }
-                    return executeConversation(goal, provider, listener);
-                }
-
-                // Engineering goals that need a project: fail fast instead of retrying tools blindly.
+                // Project requirement is validated before intent routing so missing context
+                // fails fast (BLOCKED) without calling the classifier or burning retries.
                 if (requiresProjectContext(goal) && currentProjectRoot().isEmpty()) {
                     return failWithoutExecution(goal, listener, NO_PROJECT_MESSAGE);
+                }
+
+                // Conversational / informational path — never enter task/replan loops.
+                if (intentClassifier != null && !intentClassifier.shouldUseTaskOrchestrator(goal)) {
+                    return executeConversation(goal, provider, listener);
                 }
 
                 while (replans <= MAX_REPLANS) {
@@ -100,7 +98,8 @@ public final class TaskOrchestrator {
                     }
 
                     // Missing project context is not recoverable by replanning.
-                    if (isMissingProjectFailure(plan) || currentProjectRoot().isEmpty() && requiresProjectContext(goal)) {
+                    if (isMissingProjectFailure(plan)
+                            || (currentProjectRoot().isEmpty() && requiresProjectContext(goal))) {
                         listener.onFailed(NO_PROJECT_MESSAGE, plan);
                         return plan;
                     }
@@ -142,15 +141,6 @@ public final class TaskOrchestrator {
         return plan;
     }
 
-    private boolean mentionsProject(String goal) {
-        if (goal == null) {
-            return false;
-        }
-        String n = goal.toLowerCase(Locale.ROOT);
-        return n.contains("projeto") || n.contains("project") || n.contains("workspace")
-                || n.contains("código") || n.contains("codigo") || n.contains("codebase");
-    }
-
     private boolean requiresProjectContext(String goal) {
         if (goal == null) {
             return false;
@@ -170,6 +160,8 @@ public final class TaskOrchestrator {
                 || normalized.contains("sobre o projeto")
                 || normalized.contains("do projeto")
                 || normalized.contains("no projeto")
+                || normalized.contains("projeto atual")
+                || normalized.contains("este projeto")
                 || normalized.contains("workspace")
                 || normalized.contains("pom.xml")
                 || normalized.contains("build.gradle")
@@ -195,26 +187,6 @@ public final class TaskOrchestrator {
             }
         }
         return false;
-    }
-
-    private TaskPlan executeConversationWithNote(String message, String provider, Listener listener, String note) {
-        AgentTask responseTask = new AgentTask(
-                "Assistant",
-                message,
-                "A resposta conversacional foi gerada pelo modelo.",
-                Collections.<String>emptyList());
-        TaskPlan plan = new TaskPlan(message, Collections.singletonList(responseTask));
-
-        listener.onPlanCreated(plan);
-        listener.onTaskStarted(responseTask);
-
-        String content = note + "\n\nEnquanto isso, posso ajudar com dúvidas gerais sobre Java, NetBeans, Maven, etc.";
-        conversationManager.addMessage("user", message);
-        conversationManager.addMessage("assistant", content);
-        responseTask.complete(content);
-        listener.onTaskCompleted(responseTask);
-        listener.onCompleted(plan);
-        return plan;
     }
 
     private TaskPlan executeConversation(String message, String provider, Listener listener) {
