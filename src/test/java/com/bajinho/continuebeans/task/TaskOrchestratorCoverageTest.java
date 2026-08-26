@@ -11,9 +11,7 @@ import static org.mockito.Mockito.when;
 
 import com.bajinho.continuebeans.LlmClient;
 import com.bajinho.continuebeans.ai.AIToolCallingIntegration;
-import java.util.Collections;
 import java.util.Optional;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.Test;
@@ -35,7 +33,7 @@ class TaskOrchestratorCoverageTest {
         assertFalse(plan.isComplete());
         assertTrue(plan.hasBlockedTask());
         assertEquals(TaskStatus.BLOCKED, plan.getTasks().get(0).getStatus());
-        assertTrue(listener.failed > 0);
+        assertEquals(1, listener.failed.get());
     }
 
     @Test
@@ -56,7 +54,8 @@ class TaskOrchestratorCoverageTest {
 
         assertFalse(plan.isComplete());
         assertEquals(TaskStatus.FAILED, plan.getTasks().get(0).getStatus());
-        assertEquals(1, listener.failed);
+        assertEquals(1, listener.failed.get());
+        assertEquals("provider unavailable", plan.getTasks().get(0).getLastError());
     }
 
     @Test
@@ -78,33 +77,13 @@ class TaskOrchestratorCoverageTest {
         assertFalse(plan.isComplete());
         assertEquals(TaskStatus.FAILED, plan.getTasks().get(0).getStatus());
         assertEquals("O modelo não retornou conteúdo.", plan.getTasks().get(0).getLastError());
-    }
-
-    @Test
-    void hardExecutionFailureBlocksTaskWithoutRetryLoop() {
-        LlmClient classifier = classifierReturning(true);
-        AIToolCallingIntegration executor = mock(AIToolCallingIntegration.class);
-        when(executor.processRequestWithToolCalling(anyString(), anyString()))
-                .thenReturn(CompletableFuture.completedFuture(
-                        AIToolCallingIntegration.AIResponse.error("Nenhum projeto aberto no NetBeans.")));
-        ProjectContext context = () -> Optional.of("/workspace");
-        RecordingListener listener = new RecordingListener();
-
-        TaskOrchestrator orchestrator = new TaskOrchestrator(
-                new TaskPlanner(new java.net.http.HttpClient.Builder() {
-                    @Override public java.net.http.HttpClient build() { return java.net.http.HttpClient.newHttpClient(); }
-                }.build(), "http://unused", "test"), executor, classifier, context);
-
-        // This constructor path is intentionally exercised through a planner that can be replaced
-        // only by its HTTP response; the assertion validates the hard-failure classification.
-        assertTrue(orchestrator != null);
+        assertEquals(1, listener.failed.get());
     }
 
     private static LlmClient classifierReturning(boolean useTasks) {
         LlmClient classifier = mock(LlmClient.class);
         when(classifier.shouldUseTaskOrchestrator(anyString())).thenReturn(useTasks);
-        when(classifier.shouldUseTaskOrchestrator(anyString(), any()))
-                .thenReturn(useTasks);
+        when(classifier.shouldUseTaskOrchestrator(anyString(), any())).thenReturn(useTasks);
         return classifier;
     }
 
