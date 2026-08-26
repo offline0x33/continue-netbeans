@@ -32,7 +32,7 @@ class TaskOrchestratorCoverageGapTest {
     }
 
     @Test
-    void verificationNotDoneThreeTimesBlocksTask() {
+    void verificationNotDoneThreeTimesBlocksTask() throws Exception {
         TaskPlanner planner = mock(TaskPlanner.class);
         AgentTask task = new AgentTask("task", "do", "done", Collections.emptyList());
         TaskPlan plan = new TaskPlan("goal", Collections.singletonList(task));
@@ -50,7 +50,7 @@ class TaskOrchestratorCoverageGapTest {
     }
 
     @Test
-    void replanningStopsAtMaximumAndNotifiesFailure() {
+    void replanningStopsAtMaximumAndNotifiesFailure() throws Exception {
         TaskPlanner planner = mock(TaskPlanner.class);
         when(planner.createPlan(anyString()))
                 .thenReturn(plan("one"), plan("two"), plan("three"));
@@ -68,7 +68,7 @@ class TaskOrchestratorCoverageGapTest {
     }
 
     @Test
-    void nullExecutorResponseProducesNonNullFailure() {
+    void nullExecutorResponseProducesNonNullFailure() throws Exception {
         TaskPlanner planner = mock(TaskPlanner.class);
         when(planner.createPlan(anyString())).thenReturn(plan("null"));
         RecordingExecutor executor = new RecordingExecutor(null);
