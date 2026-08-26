@@ -31,10 +31,10 @@ import org.openide.util.Utilities;
 /**
  * Toolbar action for Continue Beans AI Assistant.
  * Provides quick access to the AI assistant through the NetBeans toolbar.
- * 
+ *
  * <p>This class follows Apache NetBeans toolbar integration patterns,
  * implementing proper icon handling, localization, and action registration.</p>
- * 
+ *
  * @see MenuIntegration
  * @see ProfessionalTopComponent
  */
@@ -54,36 +54,24 @@ import org.openide.util.Utilities;
     "CTL_Toolbar_Description=Open AI-powered development assistant"
 })
 public final class ToolbarAction implements ActionListener {
-    
-    /**
-     * Creates a new instance of the toolbar action.
-     * 
-     * @return a JButton configured for the Continue Beans toolbar entry
-     */
+
     public static JButton create() {
-        ImageIcon icon = null;
+        ImageIcon icon;
         try {
             icon = new ImageIcon(
-                Utilities.loadImage("com/bajinho/continuebeans/ui/continue_beans_logo.png", true)
-            );
+                Utilities.loadImage("com/bajinho/continuebeans/ui/continue_beans_logo.png", true));
         } catch (Exception e) {
-            // Fallback if icon cannot be loaded
             icon = new ImageIcon();
         }
-        
+
         JButton button = new JButton(icon);
-        button.setToolTipText(Bundle.CTL_Toolbar_Description());
+        button.setToolTipText(
+            NbBundle.getMessage(ToolbarAction.class, "CTL_Toolbar_Description"));
         button.setFocusable(false);
         button.addActionListener(new ToolbarAction());
         return button;
     }
-    
-    /**
-     * Handles the toolbar action event.
-     * Opens the Continue Beans AI Assistant window.
-     * 
-     * @param e the action event
-     */
+
     @Override
     public void actionPerformed(ActionEvent e) {
         ProfessionalTopComponent window = ProfessionalTopComponent.findInstance();
