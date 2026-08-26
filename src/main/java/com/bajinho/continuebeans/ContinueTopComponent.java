@@ -1,5 +1,6 @@
 package com.bajinho.continuebeans;
 
+import com.bajinho.continuebeans.ui.ChatTransportSelector;
 import java.awt.BorderLayout;
 import org.openide.awt.ActionID;
 import org.openide.awt.ActionReference;
@@ -28,6 +29,7 @@ public final class ContinueTopComponent extends TopComponent {
     public ContinueTopComponent() {
         setName("Continue Beans");
         setLayout(new BorderLayout());
+        add(new ChatTransportSelector(), BorderLayout.NORTH);
         add(new ChatPanel(), BorderLayout.CENTER);
     }
 }
