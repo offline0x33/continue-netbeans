@@ -12,6 +12,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.function.Consumer;
 
 public class LmStudioProvider implements LlmProvider {
@@ -151,15 +152,28 @@ public class LmStudioProvider implements LlmProvider {
                     onComplete.run();
                 })
                 .exceptionally(ex -> {
-                    if (ex instanceof java.net.http.HttpTimeoutException) {
+                    Throwable cause = unwrap(ex);
+                    if (cause instanceof java.net.http.HttpTimeoutException) {
                         onError.accept(new Exception(ErrorHandler.formatTimeoutMessage()));
-                    } else if (ex instanceof java.io.IOException) {
-                        onError.accept(new Exception(ErrorHandler.formatNetworkError(ex.getMessage())));
+                    } else if (cause instanceof java.io.IOException) {
+                        onError.accept(new Exception(ErrorHandler.formatNetworkError(cause.getMessage())));
                     } else {
-                        onError.accept(ex);
+                        onError.accept(cause);
                     }
                     return null;
                 });
+    }
+
+    /** Unwrap CompletionException / ExecutionException to the underlying cause. */
+    private static Throwable unwrap(Throwable ex) {
+        Throwable current = ex;
+        while (current instanceof CompletionException || current instanceof java.util.concurrent.ExecutionException) {
+            if (current.getCause() == null || current.getCause() == current) {
+                break;
+            }
+            current = current.getCause();
+        }
+        return current;
     }
 
     @Override

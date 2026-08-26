@@ -163,9 +163,13 @@ class LlmClientTest {
 
     @Test
     void testStreamingWithPlanningMode() throws Exception {
+        // Use a port that is almost never bound so the connection fails deterministically,
+        // even when LM Studio is running on the default :1234 during local/CI runs.
         try (MockedStatic<ContinueSettings> settingsMock = mockStatic(ContinueSettings.class)) {
             settingsMock.when(ContinueSettings::getModel).thenReturn("model");
-            settingsMock.when(ContinueSettings::getApiUrl).thenReturn("http://localhost:1234");
+            settingsMock.when(ContinueSettings::getApiUrl)
+                    .thenReturn("http://127.0.0.1:1/v1/chat/completions");
+            settingsMock.when(ContinueSettings::getTemperature).thenReturn(0.7);
 
             Throwable[] error = {null};
             CountDownLatch completion = new CountDownLatch(1);
@@ -187,7 +191,9 @@ class LlmClientTest {
     void testStreamingWithDocMode() throws Exception {
         try (MockedStatic<ContinueSettings> settingsMock = mockStatic(ContinueSettings.class)) {
             settingsMock.when(ContinueSettings::getModel).thenReturn("model");
-            settingsMock.when(ContinueSettings::getApiUrl).thenReturn("http://localhost:1234");
+            settingsMock.when(ContinueSettings::getApiUrl)
+                    .thenReturn("http://127.0.0.1:1/v1/chat/completions");
+            settingsMock.when(ContinueSettings::getTemperature).thenReturn(0.7);
 
             Throwable[] error = {null};
             CountDownLatch completion = new CountDownLatch(1);
