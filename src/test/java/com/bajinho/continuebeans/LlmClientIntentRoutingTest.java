@@ -13,7 +13,7 @@ class LlmClientIntentRoutingTest {
 
         assertFalse(client.shouldUseTaskOrchestrator("Olá"));
         assertFalse(client.shouldUseTaskOrchestrator("Como você está?"));
-        assertFalse(client.shouldUseTaskOrchestrator("Explique o que é Maven"));
+        assertFalse(client.shouldUseTaskOrchestrator("Explique o que é Java"));
     }
 
     @Test
