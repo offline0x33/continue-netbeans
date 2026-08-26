@@ -70,6 +70,20 @@ public class LlmClient {
             return;
         }
 
+        if (ContinueSettings.getChatTransportMode() == ChatTransportMode.API) {
+            provider.ask(contextoCodigo, perguntaUsuario, selectedModel, mode)
+                    .thenAccept(response -> {
+                        onChunk.accept(response);
+                        onComplete.run();
+                    })
+                    .exceptionally(error -> {
+                        Throwable cause = error.getCause() != null ? error.getCause() : error;
+                        onError.accept(cause);
+                        return null;
+                    });
+            return;
+        }
+
         provider.stream(contextoCodigo, perguntaUsuario, selectedModel, mode, onChunk, onError, onComplete);
     }
 
