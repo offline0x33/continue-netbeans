@@ -78,8 +78,8 @@ class LlmClientTest {
 
             assertNotNull(error[0], "Should report error when model is null");
             assertTrue(error[0].getMessage().contains("não selecionado") ||
-                      error[0].getMessage().contains("not selected"),
-                      "Error message should indicate model not selected");
+                    error[0].getMessage().contains("not selected"),
+                    "Error message should indicate model not selected");
         }
     }
 
@@ -169,9 +169,7 @@ class LlmClientTest {
 
             Throwable[] error = {null};
             client.perguntarIAStreaming("code", "plan", "model", "Planning",
-                    chunk -> {},
-                    err -> error[0] = err,
-                    () -> {});
+                    chunk -> {}, err -> error[0] = err, () -> {});
 
             assertNull(error[0]);
         }
@@ -194,7 +192,6 @@ class LlmClientTest {
                     completion::countDown);
 
             assertTrue(completion.await(5, TimeUnit.SECONDS), "Streaming callback should finish");
-            // The CI runner does not provide LM Studio, so a connection failure is a valid result.
             if (error[0] != null) {
                 assertInstanceOf(Throwable.class, error[0]);
             }
@@ -209,11 +206,23 @@ class LlmClientTest {
 
             Throwable[] error = {null};
             client.perguntarIAStreaming("ctx", "q", null, "Code",
-                    chunk -> {},
-                    err -> error[0] = err,
-                    () -> {});
+                    chunk -> {}, err -> error[0] = err, () -> {});
 
             assertNull(error[0]);
         }
+    }
+
+    @Test
+    void conversationalMessagesBypassTaskOrchestrator() {
+        assertFalse(client.shouldUseTaskOrchestrator("Olá"));
+        assertFalse(client.shouldUseTaskOrchestrator("Como você está?"));
+        assertFalse(client.shouldUseTaskOrchestrator("me explique o que é dependency injection"));
+    }
+
+    @Test
+    void engineeringMessagesUseTaskOrchestrator() {
+        assertTrue(client.shouldUseTaskOrchestrator("corrija o pom.xml"));
+        assertTrue(client.shouldUseTaskOrchestrator("leia /home/bajinho/project/pom.xml"));
+        assertTrue(client.shouldUseTaskOrchestrator("crie uma classe UserService"));
     }
 }
