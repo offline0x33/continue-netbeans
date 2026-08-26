@@ -26,7 +26,9 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 
+@Timeout(value = 30, unit = java.util.concurrent.TimeUnit.SECONDS)
 class TaskOrchestratorTest {
     private HttpServer server;
 
