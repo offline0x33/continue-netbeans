@@ -2,227 +2,185 @@ package com.bajinho.continuebeans;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedConstruction;
 import org.mockito.MockedStatic;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 /**
- * Tests for LlmClient to increase code coverage.
+ * Unit tests for LlmClient. Provider and network interactions are mocked.
  */
 class LlmClientTest {
 
     private LlmClient client;
+    private MockedConstruction<LmStudioProvider> providerConstruction;
+    private LmStudioProvider provider;
 
     @BeforeEach
     void setUp() {
+        providerConstruction = mockConstruction(LmStudioProvider.class, (mock, context) -> {
+            when(mock.ask(anyString(), anyString(), anyString(), anyString()))
+                    .thenReturn(CompletableFuture.completedFuture("mock response"));
+            when(mock.listModels())
+                    .thenReturn(CompletableFuture.completedFuture(List.of("mock-model")));
+            when(mock.loadModel(anyString()))
+                    .thenReturn(CompletableFuture.completedFuture(true));
+            doAnswer(invocation -> {
+                Consumer<String> onChunk = invocation.getArgument(4);
+                Runnable onComplete = invocation.getArgument(6);
+                if (onChunk != null) {
+                    onChunk.accept("mock chunk");
+                }
+                if (onComplete != null) {
+                    onComplete.run();
+                }
+                return null;
+            }).when(mock).stream(anyString(), anyString(), anyString(), anyString(), any(), any(), any());
+        });
         client = new LlmClient();
+        provider = providerConstruction.constructed().get(0);
+    }
+
+    @AfterEach
+    void tearDown() {
+        providerConstruction.close();
     }
 
     @Test
     void testResolveUrl() {
-        String result = client.resolveUrl("localhost:1234");
-        assertNotNull(result, "Should resolve URL");
+        assertEquals("http://127.0.0.1:1234", client.resolveUrl("localhost:1234"));
     }
 
     @Test
     void testResolveUrlWithFullUrl() {
-        String result = client.resolveUrl("http://127.0.0.1:1234/v1/chat/completions");
-        assertNotNull(result, "Should handle full URL");
+        assertEquals("http://127.0.0.1:1234/v1/chat/completions",
+                client.resolveUrl("http://127.0.0.1:1234/v1/chat/completions"));
     }
 
     @Test
-    void testPerguntarIAStreamingWithValidModel() {
-        String[] receivedChunk = {""};
-        Throwable[] receivedError = {null};
-        boolean[] completed = {false};
+    void testPerguntarIAStreamingWithValidModel() throws Exception {
+        String[] receivedChunk = {null};
+        String[] receivedError = {null};
+        CountDownLatch completion = new CountDownLatch(1);
 
-        try (MockedStatic<ContinueSettings> settingsMock = mockStatic(ContinueSettings.class)) {
-            settingsMock.when(ContinueSettings::getModel).thenReturn("test-model");
-            settingsMock.when(ContinueSettings::getApiUrl).thenReturn("http://localhost:1234/v1/chat/completions");
+        client.perguntarIAStreaming("context", "question", "test-model", "Code",
+                chunk -> receivedChunk[0] = chunk,
+                error -> {
+                    receivedError[0] = error.getMessage();
+                    completion.countDown();
+                },
+                completion::countDown);
 
-            Consumer<String> onChunk = chunk -> receivedChunk[0] = chunk;
-            Consumer<Throwable> onError = error -> receivedError[0] = error;
-            Runnable onComplete = () -> completed[0] = true;
-
-            client.perguntarIAStreaming("context", "question", "test-model", "Code",
-                    onChunk, onError, onComplete);
-
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        }
+        assertTrue(completion.await(1, TimeUnit.SECONDS));
+        assertEquals("mock chunk", receivedChunk[0]);
+        assertNull(receivedError[0]);
+        verify(provider).stream(eq("context"), eq("question"), eq("test-model"), eq("Code"),
+                any(), any(), any());
     }
 
     @Test
     void testPerguntarIAStreamingWithNullModel() {
         Throwable[] error = {null};
-
         try (MockedStatic<ContinueSettings> settingsMock = mockStatic(ContinueSettings.class)) {
             settingsMock.when(ContinueSettings::getModel).thenReturn(null);
-
-            Consumer<String> onChunk = chunk -> {};
-            Consumer<Throwable> onError = err -> error[0] = err;
-            Runnable onComplete = () -> {};
-
-            client.perguntarIAStreaming("", "test", null, "Code",
-                    onChunk, onError, onComplete);
-
-            assertNotNull(error[0], "Should report error when model is null");
-            assertTrue(error[0].getMessage().contains("não selecionado") ||
-                    error[0].getMessage().contains("not selected"),
-                    "Error message should indicate model not selected");
+            client.perguntarIAStreaming("", "test", null, "Code", chunk -> {}, err -> error[0] = err, () -> {});
         }
+        assertNotNull(error[0]);
+        assertTrue(error[0].getMessage().contains("não selecionado"));
+        verifyNoInteractions(provider);
     }
 
     @Test
     void testPerguntarIAStreamingWithEmptyModel() {
         Throwable[] error = {null};
-
         try (MockedStatic<ContinueSettings> settingsMock = mockStatic(ContinueSettings.class)) {
             settingsMock.when(ContinueSettings::getModel).thenReturn("  ");
-
-            Consumer<String> onChunk = chunk -> {};
-            Consumer<Throwable> onError = err -> error[0] = err;
-            Runnable onComplete = () -> {};
-
-            client.perguntarIAStreaming("", "test", "  ", "Code",
-                    onChunk, onError, onComplete);
-
-            assertNotNull(error[0], "Should report error for empty model");
+            client.perguntarIAStreaming("", "test", "  ", "Code", chunk -> {}, err -> error[0] = err, () -> {});
         }
+        assertNotNull(error[0]);
+        verifyNoInteractions(provider);
     }
 
     @Test
     void testPerguntarIAAsyncWithModel() throws ExecutionException, InterruptedException {
-        try (MockedStatic<ContinueSettings> settingsMock = mockStatic(ContinueSettings.class)) {
-            settingsMock.when(ContinueSettings::getModel).thenReturn("default-model");
-            settingsMock.when(ContinueSettings::getApiUrl).thenReturn("http://localhost:1234/v1/chat/completions");
-            settingsMock.when(ContinueSettings::getTemperature).thenReturn(0.7);
-
-            CompletableFuture<String> result = client.perguntarIAAsync("context", "question", "test-model", "Code");
-
-            assertNotNull(result, "Should return CompletableFuture");
-        }
+        CompletableFuture<String> result = client.perguntarIAAsync("context", "question", "test-model", "Code");
+        assertEquals("mock response", result.get(1, TimeUnit.SECONDS));
+        verify(provider).ask("context", "question", "test-model", "Code");
     }
 
     @Test
     void testPerguntarIAAsyncWithoutModel() throws ExecutionException, InterruptedException {
         try (MockedStatic<ContinueSettings> settingsMock = mockStatic(ContinueSettings.class)) {
             settingsMock.when(ContinueSettings::getModel).thenReturn("default-model");
-            settingsMock.when(ContinueSettings::getApiUrl).thenReturn("http://localhost:1234/v1/chat/completions");
-            settingsMock.when(ContinueSettings::getTemperature).thenReturn(0.7);
-
             CompletableFuture<String> result = client.perguntarIAAsync("context", "question", null, "Code");
-
-            assertNotNull(result, "Should return CompletableFuture with default model");
+            assertEquals("mock response", result.get(1, TimeUnit.SECONDS));
+            verify(provider).ask("context", "question", "default-model", "Code");
         }
     }
 
     @Test
-    void testGetModelosDisponiveisAsync() {
-        try (MockedStatic<ContinueSettings> settingsMock = mockStatic(ContinueSettings.class)) {
-            settingsMock.when(ContinueSettings::getApiUrl).thenReturn("http://localhost:1234/v1/chat/completions");
-
-            CompletableFuture<List<String>> result = client.getModelosDisponiveisAsync();
-
-            assertNotNull(result, "Should return CompletableFuture");
-
-            try {
-                result.get(1, TimeUnit.SECONDS);
-            } catch (Exception e) {
-                // Expected - server is not running
-            }
-        }
+    void testGetModelosDisponiveisAsync() throws Exception {
+        assertEquals(List.of("mock-model"), client.getModelosDisponiveisAsync().get(1, TimeUnit.SECONDS));
+        verify(provider).listModels();
     }
 
     @Test
-    void testLoadModel() {
-        try (MockedStatic<ContinueSettings> settingsMock = mockStatic(ContinueSettings.class)) {
-            settingsMock.when(ContinueSettings::getApiUrl).thenReturn("http://localhost:1234/v1/chat/completions");
-
-            CompletableFuture<Boolean> result = client.loadModel("test-model");
-
-            assertNotNull(result, "Should return CompletableFuture");
-
-            try {
-                result.get(1, TimeUnit.SECONDS);
-            } catch (Exception e) {
-                // Expected - server is not running
-            }
-        }
+    void testLoadModel() throws Exception {
+        assertTrue(client.loadModel("test-model").get(1, TimeUnit.SECONDS));
+        verify(provider).loadModel("test-model");
     }
 
     @Test
     void testStreamingWithPlanningMode() throws Exception {
-        // Use a port that is almost never bound so the connection fails deterministically,
-        // even when LM Studio is running on the default :1234 during local/CI runs.
-        try (MockedStatic<ContinueSettings> settingsMock = mockStatic(ContinueSettings.class)) {
-            settingsMock.when(ContinueSettings::getModel).thenReturn("model");
-            settingsMock.when(ContinueSettings::getApiUrl)
-                    .thenReturn("http://127.0.0.1:1/v1/chat/completions");
-            settingsMock.when(ContinueSettings::getTemperature).thenReturn(0.7);
+        doAnswer(invocation -> {
+            Consumer<Throwable> onError = invocation.getArgument(5);
+            Runnable onComplete = invocation.getArgument(6);
+            onError.accept(new IllegalStateException("mock provider failure"));
+            onComplete.run();
+            return null;
+        }).when(provider).stream(anyString(), anyString(), anyString(), anyString(), any(), any(), any());
 
-            Throwable[] error = {null};
-            CountDownLatch completion = new CountDownLatch(1);
-            client.perguntarIAStreaming("code", "plan", "model", "Planning",
-                    chunk -> {},
-                    err -> {
-                        error[0] = err;
-                        completion.countDown();
-                    },
-                    completion::countDown);
+        Throwable[] error = {null};
+        CountDownLatch completion = new CountDownLatch(1);
+        client.perguntarIAStreaming("code", "plan", "model", "Planning",
+                chunk -> {},
+                err -> {
+                    error[0] = err;
+                    completion.countDown();
+                },
+                completion::countDown);
 
-            assertTrue(completion.await(5, TimeUnit.SECONDS), "Streaming callback should finish");
-            assertNotNull(error[0], "Unreachable LM Studio endpoint should report an error");
-            assertInstanceOf(Throwable.class, error[0]);
-        }
+        assertTrue(completion.await(1, TimeUnit.SECONDS));
+        assertNotNull(error[0]);
+        assertEquals("mock provider failure", error[0].getMessage());
     }
 
     @Test
     void testStreamingWithDocMode() throws Exception {
-        try (MockedStatic<ContinueSettings> settingsMock = mockStatic(ContinueSettings.class)) {
-            settingsMock.when(ContinueSettings::getModel).thenReturn("model");
-            settingsMock.when(ContinueSettings::getApiUrl)
-                    .thenReturn("http://127.0.0.1:1/v1/chat/completions");
-            settingsMock.when(ContinueSettings::getTemperature).thenReturn(0.7);
-
-            Throwable[] error = {null};
-            CountDownLatch completion = new CountDownLatch(1);
-            client.perguntarIAStreaming("code", "doc", "model", "Docs",
-                    chunk -> {},
-                    err -> {
-                        error[0] = err;
-                        completion.countDown();
-                    },
-                    completion::countDown);
-
-            assertTrue(completion.await(5, TimeUnit.SECONDS), "Streaming callback should finish");
-            if (error[0] != null) {
-                assertInstanceOf(Throwable.class, error[0]);
-            }
-        }
+        CountDownLatch completion = new CountDownLatch(1);
+        client.perguntarIAStreaming("code", "doc", "model", "Docs",
+                chunk -> {},
+                err -> fail("Mock provider should not fail: " + err),
+                completion::countDown);
+        assertTrue(completion.await(1, TimeUnit.SECONDS));
     }
 
     @Test
-    void testPerguntarIAStreamingDefaultsToSettingsModel() {
+    void testPerguntarIAStreamingDefaultsToSettingsModel() throws Exception {
         try (MockedStatic<ContinueSettings> settingsMock = mockStatic(ContinueSettings.class)) {
             settingsMock.when(ContinueSettings::getModel).thenReturn("settings-model");
-            settingsMock.when(ContinueSettings::getApiUrl).thenReturn("http://localhost:1234");
-
-            Throwable[] error = {null};
-            client.perguntarIAStreaming("ctx", "q", null, "Code",
-                    chunk -> {}, err -> error[0] = err, () -> {});
-
-            assertNull(error[0]);
+            CountDownLatch completion = new CountDownLatch(1);
+            client.perguntarIAStreaming("ctx", "q", null, "Code", chunk -> {}, failConsumer(), completion::countDown);
+            assertTrue(completion.await(1, TimeUnit.SECONDS));
+            verify(provider).stream(eq("ctx"), eq("q"), eq("settings-model"), eq("Code"), any(), any(), any());
         }
     }
 
@@ -239,5 +197,9 @@ class LlmClientTest {
         assertTrue(client.shouldUseTaskOrchestrator("corrija o pom.xml"));
         assertTrue(client.shouldUseTaskOrchestrator("leia /home/bajinho/project/pom.xml"));
         assertTrue(client.shouldUseTaskOrchestrator("crie uma classe UserService"));
+    }
+
+    private static Consumer<Throwable> failConsumer() {
+        return error -> fail("Mock provider should not fail: " + error);
     }
 }
