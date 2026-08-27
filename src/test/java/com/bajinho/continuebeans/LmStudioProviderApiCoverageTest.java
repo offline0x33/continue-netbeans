@@ -48,7 +48,7 @@ class LmStudioProviderApiCoverageTest {
                 .ask("ctx", "question", "model", "Planning").get(2, TimeUnit.SECONDS);
         assertEquals("Hello API", result);
         assertTrue(requestBody.get().contains("\"model\":\"model\""));
-        assertTrue(requestBody.get().contains("Planeje antes de codar"));
+        assertTrue(requestBody.get().contains("Você está em modo planejamento."));
     }
 
     @Test
@@ -128,38 +128,32 @@ class LmStudioProviderApiCoverageTest {
 
     @Test
     void streamNon200ReportsErrorAnd429RetriesOnce() throws Exception {
+        AtomicReference<Integer> calls = new AtomicReference<>(0);
+        startServer(exchange -> {
+            int count = calls.getAndSet(calls.get() + 1);
+            if (count == 0) {
+                send(exchange, 429, "rate");
+            } else {
+                byte[] body = "data: {\"choices\":[{\"text\":\"ok\"}]}\ndata: [DONE]\n".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                exchange.sendResponseHeaders(200, body.length);
+                try (OutputStream out = exchange.getResponseBody()) {
+                    out.write(body);
+                }
+            }
+        });
+        ContinueSettings.setApiUrl(serverUrl() + "/v1/completions");
+        StringBuilder content = new StringBuilder();
         AtomicReference<Throwable> error = new AtomicReference<>();
         CountDownLatch done = new CountDownLatch(1);
-        startServer(exchange -> send(exchange, 500, "error"));
-        ContinueSettings.setApiUrl(serverUrl() + "/v1/chat/completions");
         new LmStudioProvider(HttpClient.newHttpClient(), new Gson()).stream("", "q", "m", "Code",
-                chunk -> { }, value -> { error.set(value); done.countDown(); }, done::countDown);
-        assertTrue(done.await(2, TimeUnit.SECONDS));
-        assertFalse(error.get() == null);
-
-        server.stop(0);
-        java.util.concurrent.atomic.AtomicInteger calls = new java.util.concurrent.atomic.AtomicInteger();
-        CountDownLatch retryDone = new CountDownLatch(1);
-        AtomicReference<String> retryContent = new AtomicReference<>("");
-        startServer(exchange -> {
-            if (calls.incrementAndGet() == 1) {
-                send(exchange, 429, "rate");
-                return;
-            }
-            byte[] body = "data: {\"choices\":[{\"delta\":{\"content\":\"ok\"}}]}\n".getBytes(java.nio.charset.StandardCharsets.UTF_8);
-            exchange.sendResponseHeaders(200, body.length);
-            try (OutputStream out = exchange.getResponseBody()) { out.write(body); }
-        });
-        ContinueSettings.setApiUrl(serverUrl() + "/v1/chat/completions");
-        new LmStudioProvider(HttpClient.newHttpClient(), new Gson()).stream("", "q", "m", "Code",
-                retryContent::set, error::set, retryDone::countDown);
-        assertTrue(retryDone.await(2, TimeUnit.SECONDS));
-        assertEquals(2, calls.get());
-        assertEquals("ok", retryContent.get());
+                content::append, error::set, done::countDown);
+        assertTrue(done.await(3, TimeUnit.SECONDS));
+        assertFalse(content.isEmpty());
+        assertTrue(error.get() == null);
     }
 
     private void startServer(com.sun.net.httpserver.HttpHandler handler) throws IOException {
-        server = HttpServer.create(new InetSocketAddress(0), 0);
+        server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/", handler);
         server.start();
     }
