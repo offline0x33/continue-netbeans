@@ -83,7 +83,7 @@ class TaskOrchestratorCoverageTest {
     }
 
     @Test
-    void hardExecutionFailureBlocksAfterPlannerCreatesPlan() {
+    void hardExecutionFailureBlocksAfterPlannerCreatesPlan() throws Exception {
         LlmClient classifier = classifierReturning(true);
         AIToolCallingIntegration executor = mock(AIToolCallingIntegration.class);
         when(executor.processRequestWithToolCalling(anyString(), anyString()))
@@ -109,7 +109,7 @@ class TaskOrchestratorCoverageTest {
     }
 
     @Test
-    void executionFailureRetriesAndBlocksAfterThreeAttempts() {
+    void executionFailureRetriesAndBlocksAfterThreeAttempts() throws Exception {
         LlmClient classifier = classifierReturning(true);
         AIToolCallingIntegration executor = mock(AIToolCallingIntegration.class);
         when(executor.processRequestWithToolCalling(anyString(), anyString()))
