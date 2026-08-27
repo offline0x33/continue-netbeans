@@ -89,7 +89,7 @@ public final class TaskPlanner {
             return parsePlan(goal, content);
         } catch (Exception e) {
             ContinueLogger.warn("Planejador estruturado indisponível; usando plano direto. Motivo: "
-                    + safeMessage(e), e);
+                    + safeMessage(e));
             return createFallbackPlan(goal);
         }
     }
