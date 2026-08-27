@@ -22,16 +22,10 @@ public class ThemeManager {
     private final Map<String, ThemeColor> themeColors;
     private Theme currentTheme;
     
-    /**
-     * Predefined themes for NetBeans integration.
-     */
     public enum Theme {
         LIGHT, DARK, NETBEANS_DEFAULT, NETBEANS_DARK, CUSTOM
     }
     
-    /**
-     * Theme color definitions.
-     */
     public static class ThemeColor {
         private final Color primary;
         private final Color secondary;
@@ -56,7 +50,6 @@ public class ThemeManager {
             this.success = success;
         }
         
-        // Getters
         public Color getPrimary() { return primary; }
         public Color getSecondary() { return secondary; }
         public Color getBackground() { return background; }
@@ -68,9 +61,6 @@ public class ThemeManager {
         public Color getSuccess() { return success; }
     }
     
-    /**
-     * Private constructor for singleton.
-     */
     private ThemeManager() {
         this.themeColors = new HashMap<>();
         this.currentTheme = Theme.NETBEANS_DEFAULT;
@@ -78,10 +68,6 @@ public class ThemeManager {
         detectNetBeansTheme();
     }
     
-    /**
-     * Gets the singleton instance.
-     * @return The ThemeManager instance
-     */
     public static synchronized ThemeManager getInstance() {
         if (instance == null) {
             instance = new ThemeManager();
@@ -89,68 +75,32 @@ public class ThemeManager {
         return instance;
     }
     
-    /**
-     * Initializes predefined themes.
-     */
     private void initializeThemes() {
-        // Light theme
         themeColors.put(Theme.LIGHT.name(), new ThemeColor(
-            new Color(51, 51, 51),      // primary
-            new Color(102, 102, 102),   // secondary
-            new Color(255, 255, 255),   // background
-            new Color(0, 0, 0),         // foreground
-            new Color(0, 120, 215),     // accent
-            new Color(220, 53, 69),     // error
-            new Color(255, 193, 7),     // warning
-            new Color(23, 162, 184),     // info
-            new Color(40, 167, 69)       // success
+            new Color(51, 51, 51), new Color(102, 102, 102), new Color(255, 255, 255),
+            new Color(0, 0, 0), new Color(0, 120, 215), new Color(220, 53, 69),
+            new Color(255, 193, 7), new Color(23, 162, 184), new Color(40, 167, 69)
         ));
-        
-        // Dark theme
         themeColors.put(Theme.DARK.name(), new ThemeColor(
-            new Color(255, 255, 255),   // primary
-            new Color(200, 200, 200),   // secondary
-            new Color(30, 30, 30),       // background
-            new Color(255, 255, 255),   // foreground
-            new Color(0, 120, 215),     // accent
-            new Color(220, 53, 69),     // error
-            new Color(255, 193, 7),     // warning
-            new Color(23, 162, 184),     // info
-            new Color(40, 167, 69)       // success
+            new Color(255, 255, 255), new Color(200, 200, 200), new Color(30, 30, 30),
+            new Color(255, 255, 255), new Color(0, 120, 215), new Color(220, 53, 69),
+            new Color(255, 193, 7), new Color(23, 162, 184), new Color(40, 167, 69)
         ));
-        
-        // NetBeans default theme (detected)
         themeColors.put(Theme.NETBEANS_DEFAULT.name(), detectNetBeansColors());
-        
-        // NetBeans dark theme
         themeColors.put(Theme.NETBEANS_DARK.name(), new ThemeColor(
-            new Color(240, 240, 240),   // primary
-            new Color(180, 180, 180),   // secondary
-            new Color(43, 43, 43),       // background
-            new Color(240, 240, 240),   // foreground
-            new Color(0, 153, 204),     // accent
-            new Color(204, 0, 0),        // error
-            new Color(255, 204, 0),     // warning
-            new Color(0, 153, 204),     // info
-            new Color(0, 153, 0)        // success
+            new Color(240, 240, 240), new Color(180, 180, 180), new Color(43, 43, 43),
+            new Color(240, 240, 240), new Color(0, 153, 204), new Color(204, 0, 0),
+            new Color(255, 204, 0), new Color(0, 153, 204), new Color(0, 153, 0)
         ));
     }
     
-    /**
-     * Detects the current NetBeans theme colors.
-     * @return ThemeColor based on current NetBeans look and feel
-     */
     private ThemeColor detectNetBeansColors() {
         try {
-            // Try to get colors from UIManager
             Color background = getColorFromUIManager("Panel.background", Color.WHITE);
             Color foreground = getColorFromUIManager("Panel.foreground", Color.BLACK);
             Color primary = getColorFromUIManager("Label.foreground", foreground);
             Color accent = getColorFromUIManager("Button.foreground", new Color(0, 120, 215));
-            
-            // Determine if it's dark or light theme
             boolean isDark = isDarkColor(background);
-            
             Color error = getColorFromUIManager("OptionPane.errorDialog.titlePane.background", 
                                               isDark ? new Color(220, 53, 69) : new Color(196, 30, 58));
             Color warning = getColorFromUIManager("OptionPane.warningDialog.titlePane.background", 
@@ -158,45 +108,25 @@ public class ThemeManager {
             Color info = getColorFromUIManager("OptionPane.informationDialog.titlePane.background", 
                                              isDark ? new Color(23, 162, 184) : new Color(23, 162, 184));
             Color success = isDark ? new Color(40, 167, 69) : new Color(25, 135, 84);
-            
-            return new ThemeColor(primary, accent.darker(), background, foreground, 
-                                accent, error, warning, info, success);
+            return new ThemeColor(primary, accent.darker(), background, foreground, accent, error, warning, info, success);
         } catch (Exception e) {
             LOG.log(Level.WARNING, "Failed to detect NetBeans theme colors, using defaults", e);
             return themeColors.get(Theme.LIGHT.name());
         }
     }
     
-    /**
-     * Gets a color from UIManager with fallback.
-     * @param key The UIManager key
-     * @param fallback The fallback color
-     * @return The color from UIManager or fallback
-     */
     private Color getColorFromUIManager(String key, Color fallback) {
         Color color = UIManager.getColor(key);
         return color != null ? color : fallback;
     }
     
-    /**
-     * Determines if a color is dark.
-     * @param color The color to check
-     * @return True if the color is dark
-     */
     private boolean isDarkColor(Color color) {
-        // Calculate luminance
-        double luminance = (0.299 * color.getRed() + 
-                          0.587 * color.getGreen() + 
-                          0.114 * color.getBlue()) / 255;
+        double luminance = (0.299 * color.getRed() + 0.587 * color.getGreen() + 0.114 * color.getBlue()) / 255;
         return luminance < 0.5;
     }
     
-    /**
-     * Detects the current NetBeans theme.
-     */
     private void detectNetBeansTheme() {
         try {
-            // Check if we're in a dark theme by looking at the panel background
             Color panelBackground = UIManager.getColor("Panel.background");
             if (panelBackground != null) {
                 if (isDarkColor(panelBackground)) {
@@ -212,45 +142,27 @@ public class ThemeManager {
         }
     }
     
-    /**
-     * Gets the current theme.
-     * @return The current theme
-     */
-    public Theme getCurrentTheme() {
-        return currentTheme;
-    }
+    public Theme getCurrentTheme() { return currentTheme; }
     
-    /**
-     * Sets the current theme.
-     * @param theme The theme to set
-     */
     public void setCurrentTheme(Theme theme) {
         this.currentTheme = theme;
         LOG.info("Theme set to: " + theme);
     }
     
+    public ThemeColor getCurrentThemeColors() { return themeColors.get(currentTheme.name()); }
+    
+    public ThemeColor getThemeColors(Theme theme) { return themeColors.get(theme.name()); }
+
     /**
-     * Gets the theme colors for the current theme.
-     * @return The current theme colors
+     * Gets theme colors for a theme registered by name.
+     *
+     * @param themeName the registered theme name
+     * @return the theme colors, or null when no theme is registered with that name
      */
-    public ThemeColor getCurrentThemeColors() {
-        return themeColors.get(currentTheme.name());
+    public ThemeColor getThemeColors(String themeName) {
+        return themeColors.get(themeName);
     }
     
-    /**
-     * Gets theme colors for a specific theme.
-     * @param theme The theme to get colors for
-     * @return The theme colors
-     */
-    public ThemeColor getThemeColors(Theme theme) {
-        return themeColors.get(theme.name());
-    }
-    
-    /**
-     * Gets a specific color from the current theme.
-     * @param colorType The color type (e.g., "primary", "background")
-     * @return The color
-     */
     public Color getColor(String colorType) {
         ThemeColor colors = getCurrentThemeColors();
         switch (colorType.toLowerCase()) {
@@ -267,13 +179,8 @@ public class ThemeManager {
         }
     }
     
-    /**
-     * Updates UIManager colors with the current theme.
-     */
     public void applyThemeToUIManager() {
         ThemeColor colors = getCurrentThemeColors();
-        
-        // Update UIManager with theme colors
         UIManager.put("ContinueBeans.primary", new ColorUIResource(colors.getPrimary()));
         UIManager.put("ContinueBeans.secondary", new ColorUIResource(colors.getSecondary()));
         UIManager.put("ContinueBeans.background", new ColorUIResource(colors.getBackground()));
@@ -283,102 +190,44 @@ public class ThemeManager {
         UIManager.put("ContinueBeans.warning", new ColorUIResource(colors.getWarning()));
         UIManager.put("ContinueBeans.info", new ColorUIResource(colors.getInfo()));
         UIManager.put("ContinueBeans.success", new ColorUIResource(colors.getSuccess()));
-        
         LOG.info("Applied theme colors to UIManager");
     }
     
-    /**
-     * Creates a custom theme.
-     * @param name The theme name
-     * @param colors The theme colors
-     */
     public void createCustomTheme(String name, ThemeColor colors) {
         themeColors.put(name, colors);
         LOG.info("Created custom theme: " + name);
     }
     
-    /**
-     * Gets the background color for chat components.
-     * @return The appropriate background color
-     */
     public Color getChatBackground() {
-        // Try NetBeans-specific colors first
         Color editorPane = UIManager.getColor("EditorPane.background");
-        if (editorPane != null) {
-            return editorPane;
-        }
-        
+        if (editorPane != null) return editorPane;
         Color textArea = UIManager.getColor("TextArea.background");
-        if (textArea != null) {
-            return textArea;
-        }
-        
-        // Fallback to current theme
+        if (textArea != null) return textArea;
         return getCurrentThemeColors().getBackground();
     }
     
-    /**
-     * Gets the foreground color for chat components.
-     * @return The appropriate foreground color
-     */
     public Color getChatForeground() {
-        // Try NetBeans-specific colors first
         Color editorPane = UIManager.getColor("EditorPane.foreground");
-        if (editorPane != null) {
-            return editorPane;
-        }
-        
+        if (editorPane != null) return editorPane;
         Color textArea = UIManager.getColor("TextArea.foreground");
-        if (textArea != null) {
-            return textArea;
-        }
-        
-        // Fallback to current theme
+        if (textArea != null) return textArea;
         return getCurrentThemeColors().getForeground();
     }
     
-    /**
-     * Gets the accent color for UI elements.
-     * @return The accent color
-     */
-    public Color getAccentColor() {
-        return getCurrentThemeColors().getAccent();
-    }
+    public Color getAccentColor() { return getCurrentThemeColors().getAccent(); }
     
-    /**
-     * Checks if the current theme is dark.
-     * @return True if the current theme is dark
-     */
-    public boolean isDarkTheme() {
-        return isDarkColor(getCurrentThemeColors().getBackground());
-    }
+    public boolean isDarkTheme() { return isDarkColor(getCurrentThemeColors().getBackground()); }
     
-    /**
-     * Toggles between light and dark themes.
-     */
     public void toggleTheme() {
-        if (isDarkTheme()) {
-            setCurrentTheme(Theme.LIGHT);
-        } else {
-            setCurrentTheme(Theme.DARK);
-        }
+        if (isDarkTheme()) setCurrentTheme(Theme.LIGHT);
+        else setCurrentTheme(Theme.DARK);
         applyThemeToUIManager();
     }
     
-    /**
-     * Gets all available theme names.
-     * @return Array of theme names
-     */
-    public String[] getAvailableThemes() {
-        return themeColors.keySet().toArray(new String[0]);
-    }
+    public String[] getAvailableThemes() { return themeColors.keySet().toArray(new String[0]); }
     
-    /**
-     * Refreshes the theme detection (useful when NetBeans theme changes).
-     */
     public void refreshThemeDetection() {
         detectNetBeansTheme();
-        // Update NETBEANS_DEFAULT theme with detected colors
         themeColors.put(Theme.NETBEANS_DEFAULT.name(), detectNetBeansColors());
         LOG.info("Refreshed theme detection");
     }
