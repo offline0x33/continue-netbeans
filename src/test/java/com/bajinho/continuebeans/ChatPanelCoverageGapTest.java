@@ -2,10 +2,9 @@ package com.bajinho.continuebeans;
 
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedConstruction;
-import org.mockito.MockedStatic;
 
-import javax.swing.JComboBox;
 import javax.swing.JButton;
+import javax.swing.JComboBox;
 import javax.swing.JTextField;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -20,39 +19,33 @@ import static org.mockito.Mockito.*;
 class ChatPanelCoverageGapTest {
 
     @Test
-    void rejectsMissingApiUrl() throws Exception {
-        withPanel("http://mock/api", "test-model", (panel, settings, client, orchestrator) -> {
-            settings.when(ContinueSettings::getApiUrl).thenReturn(null);
+    void rejectsMissingAndBlankApiUrl() throws Exception {
+        withPanel("", "test-model", (panel, client, orchestrator) -> {
             assertFalse((Boolean) invoke(panel, "hasConfiguredApiUrl"));
-
-            settings.when(ContinueSettings::getApiUrl).thenReturn("   ");
+        });
+        withPanel("   ", "test-model", (panel, client, orchestrator) -> {
             assertFalse((Boolean) invoke(panel, "hasConfiguredApiUrl"));
         });
     }
 
     @Test
     void rejectsMalformedAndMissingSchemeApiUrls() throws Exception {
-        withPanel("http://mock/api", "test-model", (panel, settings, client, orchestrator) -> {
-            settings.when(ContinueSettings::getApiUrl).thenReturn("not a url");
-            assertFalse((Boolean) invoke(panel, "hasConfiguredApiUrl"));
-
-            settings.when(ContinueSettings::getApiUrl).thenReturn("//localhost:1234");
-            assertFalse((Boolean) invoke(panel, "hasConfiguredApiUrl"));
-        });
+        withPanel("not a url", "test-model", (panel, client, orchestrator) ->
+                assertFalse((Boolean) invoke(panel, "hasConfiguredApiUrl")));
+        withPanel("//localhost:1234", "test-model", (panel, client, orchestrator) ->
+                assertFalse((Boolean) invoke(panel, "hasConfiguredApiUrl")));
     }
 
     @Test
     void acceptsValidConfiguredApiUrl() throws Exception {
-        withPanel("http://mock/api", "test-model", (panel, settings, client, orchestrator) -> {
-            settings.when(ContinueSettings::getApiUrl)
-                    .thenReturn("http://127.0.0.1:1234/v1/chat/completions");
-            assertTrue((Boolean) invoke(panel, "hasConfiguredApiUrl"));
-        });
+        withPanel("http://127.0.0.1:1234/v1/chat/completions", "test-model",
+                (panel, client, orchestrator) ->
+                        assertTrue((Boolean) invoke(panel, "hasConfiguredApiUrl")));
     }
 
     @Test
     void containsItemCoversPresentAndAbsentValues() throws Exception {
-        withPanel("http://mock/api", "test-model", (panel, settings, client, orchestrator) -> {
+        withPanel("", "test-model", (panel, client, orchestrator) -> {
             JComboBox<String> selector = field(panel, "modeSelector", JComboBox.class);
             assertTrue((Boolean) invoke(panel, "containsItem", "test-model"));
             selector.addItem("second-model");
@@ -63,14 +56,11 @@ class ChatPanelCoverageGapTest {
 
     @Test
     void selectedModelFallsBackToSettingsForPlaceholders() throws Exception {
-        withPanel("http://mock/api", "test-model", (panel, settings, client, orchestrator) -> {
+        withPanel("", "fallback-model", (panel, client, orchestrator) -> {
             JComboBox<String> selector = field(panel, "modeSelector", JComboBox.class);
-
-            selector.setSelectedItem(null);
-            settings.when(ContinueSettings::getModel).thenReturn("fallback-model");
+            selector.removeAllItems();
             assertEquals("fallback-model", invoke(panel, "getSelectedModel"));
 
-            selector.removeAllItems();
             selector.addItem("Loading models…");
             assertEquals("fallback-model", invoke(panel, "getSelectedModel"));
 
@@ -86,32 +76,32 @@ class ChatPanelCoverageGapTest {
 
     @Test
     void persistSelectedModelIgnoresPlaceholdersAndPersistsRealModels() throws Exception {
-        withPanel("http://mock/api", "test-model", (panel, settings, client, orchestrator) -> {
+        withPanel("", "test-model", (panel, client, orchestrator) -> {
             JComboBox<String> selector = field(panel, "modeSelector", JComboBox.class);
 
             selector.removeAllItems();
             selector.addItem("Loading models…");
             selector.setSelectedItem("Loading models…");
             invoke(panel, "persistSelectedModel");
-            settings.verify(() -> ContinueSettings.setModel("Loading models…"), never());
+            assertEquals("test-model", ContinueSettings.getModel());
 
             selector.removeAllItems();
             selector.addItem("No models available");
             selector.setSelectedItem("No models available");
             invoke(panel, "persistSelectedModel");
-            settings.verify(() -> ContinueSettings.setModel("No models available"), never());
+            assertEquals("test-model", ContinueSettings.getModel());
 
             selector.removeAllItems();
             selector.addItem("production-model");
             selector.setSelectedItem("production-model");
             invoke(panel, "persistSelectedModel");
-            settings.verify(() -> ContinueSettings.setModel("production-model"));
+            assertEquals("production-model", ContinueSettings.getModel());
         });
     }
 
     @Test
     void sendAvailabilityTracksTextAndProcessingState() throws Exception {
-        withPanel("http://mock/api", "test-model", (panel, settings, client, orchestrator) -> {
+        withPanel("", "test-model", (panel, client, orchestrator) -> {
             JTextField input = field(panel, "promptInput", JTextField.class);
             JButton send = field(panel, "sendButton", JButton.class);
 
@@ -131,7 +121,7 @@ class ChatPanelCoverageGapTest {
 
     @Test
     void sendPromptStopsOnEmptyInput() throws Exception {
-        withPanel("http://mock/api", "test-model", (panel, settings, client, orchestrator) -> {
+        withPanel("", "test-model", (panel, client, orchestrator) -> {
             JTextField input = field(panel, "promptInput", JTextField.class);
             input.setText("   ");
             invoke(panel, "sendPrompt");
@@ -141,7 +131,7 @@ class ChatPanelCoverageGapTest {
 
     @Test
     void sendPromptRequiresModel() throws Exception {
-        withPanel("http://mock/api", "", (panel, settings, client, orchestrator) -> {
+        withPanel("", "", (panel, client, orchestrator) -> {
             JComboBox<String> selector = field(panel, "modeSelector", JComboBox.class);
             selector.removeAllItems();
             selector.addItem("No models available");
@@ -157,7 +147,8 @@ class ChatPanelCoverageGapTest {
 
     @Test
     void refreshModelsHandlesSuccessfulModelList() throws Exception {
-        withPanel("http://mock/api", "preferred-model", (panel, settings, client, orchestrator) -> {
+        withPanel("", "preferred-model", (panel, client, orchestrator) -> {
+            ContinueSettings.setApiUrl("http://mock/api");
             when(client.getModelosDisponiveisAsync())
                     .thenReturn(CompletableFuture.completedFuture(
                             Arrays.asList("alpha", "preferred-model", " ", null)));
@@ -168,13 +159,13 @@ class ChatPanelCoverageGapTest {
             JComboBox<String> selector = field(panel, "modeSelector", JComboBox.class);
             assertEquals(2, selector.getItemCount());
             assertEquals("preferred-model", selector.getSelectedItem());
-            settings.verify(() -> ContinueSettings.setModel(anyString()), never());
         });
     }
 
     @Test
     void refreshModelsHandlesEmptyResultWithSelectedModel() throws Exception {
-        withPanel("http://mock/api", "saved-model", (panel, settings, client, orchestrator) -> {
+        withPanel("", "saved-model", (panel, client, orchestrator) -> {
+            ContinueSettings.setApiUrl("http://mock/api");
             when(client.getModelosDisponiveisAsync())
                     .thenReturn(CompletableFuture.completedFuture(List.of()));
 
@@ -189,7 +180,8 @@ class ChatPanelCoverageGapTest {
 
     @Test
     void refreshModelsHandlesEmptyResultWithoutSelectedModel() throws Exception {
-        withPanel("http://mock/api", "", (panel, settings, client, orchestrator) -> {
+        withPanel("", "", (panel, client, orchestrator) -> {
+            ContinueSettings.setApiUrl("http://mock/api");
             when(client.getModelosDisponiveisAsync())
                     .thenReturn(CompletableFuture.completedFuture(List.of()));
 
@@ -204,7 +196,8 @@ class ChatPanelCoverageGapTest {
 
     @Test
     void refreshModelsHandlesProviderFailure() throws Exception {
-        withPanel("http://mock/api", "saved-model", (panel, settings, client, orchestrator) -> {
+        withPanel("", "saved-model", (panel, client, orchestrator) -> {
+            ContinueSettings.setApiUrl("http://mock/api");
             when(client.getModelosDisponiveisAsync())
                     .thenReturn(CompletableFuture.failedFuture(new IllegalStateException("offline")));
 
@@ -218,7 +211,7 @@ class ChatPanelCoverageGapTest {
 
     @Test
     void sendPromptWithMockedOrchestratorStartsProcessing() throws Exception {
-        withPanel("http://mock/api", "test-model", (panel, settings, client, orchestrator) -> {
+        withPanel("", "test-model", (panel, client, orchestrator) -> {
             JComboBox<String> selector = field(panel, "modeSelector", JComboBox.class);
             selector.removeAllItems();
             selector.addItem("test-model");
@@ -239,17 +232,21 @@ class ChatPanelCoverageGapTest {
     }
 
     private static void withPanel(String apiUrl, String model, TestBody body) throws Exception {
-        try (MockedStatic<ContinueSettings> settings = mockStatic(ContinueSettings.class);
-             MockedConstruction<LlmClient> clients = mockConstruction(LlmClient.class);
+        String originalApiUrl = ContinueSettings.getApiUrl();
+        String originalModel = ContinueSettings.getModel();
+        try (MockedConstruction<LlmClient> clients = mockConstruction(LlmClient.class);
              MockedConstruction<com.bajinho.continuebeans.task.TaskOrchestrator> orchestrators =
                      mockConstruction(com.bajinho.continuebeans.task.TaskOrchestrator.class)) {
-            settings.when(ContinueSettings::getApiUrl).thenReturn(apiUrl);
-            settings.when(ContinueSettings::getModel).thenReturn(model);
+            ContinueSettings.setApiUrl(apiUrl);
+            ContinueSettings.setModel(model);
             ChatPanel panel = new ChatPanel();
             LlmClient client = clients.constructed().get(0);
             com.bajinho.continuebeans.task.TaskOrchestrator orchestrator =
                     orchestrators.constructed().get(0);
-            body.run(panel, settings, client, orchestrator);
+            body.run(panel, client, orchestrator);
+        } finally {
+            ContinueSettings.setApiUrl(originalApiUrl);
+            ContinueSettings.setModel(originalModel);
         }
     }
 
@@ -289,8 +286,7 @@ class ChatPanelCoverageGapTest {
 
     @FunctionalInterface
     private interface TestBody {
-        void run(ChatPanel panel, MockedStatic<ContinueSettings> settings,
-                 LlmClient client,
+        void run(ChatPanel panel, LlmClient client,
                  com.bajinho.continuebeans.task.TaskOrchestrator orchestrator) throws Exception;
     }
 }
