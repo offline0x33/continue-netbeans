@@ -6,6 +6,7 @@ import java.awt.Dimension;
 import java.awt.FlowLayout;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
+import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
@@ -24,9 +25,23 @@ public class ChatPanel extends JPanel {
     private boolean processing;
 
     public ChatPanel() {
-        super(new BorderLayout(0, 8));
+        super(new BorderLayout());
         setBackground(BACKGROUND);
         setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
+
+        JPanel header = new JPanel(new BorderLayout());
+        header.setOpaque(false);
+
+        JLabel readyState = new JLabel("Ready. Describe what you want changed.");
+        readyState.setForeground(TEXT);
+        header.add(readyState, BorderLayout.WEST);
+
+        JComboBox<String> modeSelector = new JComboBox<>(new String[] {
+            ContinueSettings.getAgentMode().getLabel()
+        });
+        modeSelector.setSelectedIndex(0);
+        header.add(modeSelector, BorderLayout.EAST);
+        add(header, BorderLayout.NORTH);
 
         conversation.setEditable(false);
         conversation.setLineWrap(true);
@@ -34,8 +49,6 @@ public class ChatPanel extends JPanel {
         conversation.setBackground(BACKGROUND);
         conversation.setForeground(TEXT);
         conversation.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
-        conversation.setText("Ready. Describe what you want changed.");
-
         add(new JScrollPane(conversation), BorderLayout.CENTER);
 
         JPanel composerPanel = new JPanel(new BorderLayout(8, 0));
@@ -48,24 +61,22 @@ public class ChatPanel extends JPanel {
 
         JButton send = new JButton("↑");
         send.setToolTipText("Send message");
-        send.setEnabled(true);
         composerPanel.add(send, BorderLayout.EAST);
         add(composerPanel, BorderLayout.SOUTH);
 
         JPanel footer = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         footer.setOpaque(false);
         footer.add(new JLabel("Tip: Type @ conversation"));
-        footer.add(new JLabel("Local"));
-        footer.add(new JLabel("continue-netbeans"));
-        add(footer, BorderLayout.NORTH);
-
-        JButton refresh = new JButton();
+        footer.add(new JLabel("Local · continue-netbeans"));
+        footer.add(new JLabel("Assistant"));
+        JButton refresh = new JButton("↻");
         refresh.setToolTipText("Refresh models");
-        refresh.setText("↻");
-        refresh.addActionListener(e -> llmClient.getModelosDisponiveisAsync());
         footer.add(refresh);
+        add(footer, BorderLayout.PAGE_END);
 
         send.addActionListener(e -> sendMessage());
+        composer.addActionListener(e -> sendMessage());
+        refresh.addActionListener(e -> llmClient.getModelosDisponiveisAsync());
     }
 
     private void sendMessage() {
