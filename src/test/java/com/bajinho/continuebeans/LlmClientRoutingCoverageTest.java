@@ -108,14 +108,16 @@ class LlmClientRoutingCoverageTest {
     @Test
     void resolveUrlDelegatesToUrlUtils() {
         String endpoint = "http://localhost:1234";
+        String resolvedEndpoint = "http://127.0.0.1:1234";
         String completionEndpoint = endpoint + "/v1/chat/completions";
+        String resolvedCompletionEndpoint = resolvedEndpoint + "/v1/chat/completions";
 
         try (MockedStatic<UrlUtils> urlUtils = mockStatic(UrlUtils.class)) {
-            urlUtils.when(() -> UrlUtils.resolveUrl(endpoint)).thenReturn(endpoint);
-            urlUtils.when(() -> UrlUtils.resolveUrl(completionEndpoint)).thenReturn(completionEndpoint);
+            urlUtils.when(() -> UrlUtils.resolveUrl(endpoint)).thenReturn(resolvedEndpoint);
+            urlUtils.when(() -> UrlUtils.resolveUrl(completionEndpoint)).thenReturn(resolvedCompletionEndpoint);
 
-            assertEquals(endpoint, client.resolveUrl(endpoint));
-            assertEquals(completionEndpoint, client.resolveUrl(completionEndpoint));
+            assertEquals(resolvedEndpoint, client.resolveUrl(endpoint));
+            assertEquals(resolvedCompletionEndpoint, client.resolveUrl(completionEndpoint));
 
             urlUtils.verify(() -> UrlUtils.resolveUrl(endpoint));
             urlUtils.verify(() -> UrlUtils.resolveUrl(completionEndpoint));
