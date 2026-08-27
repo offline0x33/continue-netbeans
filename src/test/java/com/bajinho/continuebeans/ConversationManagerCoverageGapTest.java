@@ -20,7 +20,7 @@ class ConversationManagerCoverageGapTest {
         assertEquals("[user]: hello\n[assistant]: world\n", manager.getConversationHistory());
         JsonArray array = manager.getMessagesArray();
         array.get(0).getAsJsonObject().addProperty("content", "changed");
-        assertEquals("hello", manager.getLastMessages(1).get(0).get("content").getAsString());
+        assertEquals("hello", manager.getLastMessages(2).get(0).get("content").getAsString());
     }
 
     @Test
