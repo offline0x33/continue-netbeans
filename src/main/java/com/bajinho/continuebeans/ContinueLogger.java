@@ -13,6 +13,10 @@ public class ContinueLogger {
         LOGGER.log(Level.INFO, message);
     }
 
+    public static void warn(String message) {
+        LOGGER.log(Level.WARNING, message);
+    }
+
     public static void warn(String message, Throwable t) {
         LOGGER.log(Level.WARNING, message, t);
     }
