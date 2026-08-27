@@ -2,8 +2,10 @@ package com.bajinho.continuebeans;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
 
 class LlmClientRoutingCoverageTest {
 
@@ -105,8 +107,18 @@ class LlmClientRoutingCoverageTest {
 
     @Test
     void resolveUrlDelegatesToUrlUtils() {
-        assertEquals("http://localhost:1234", client.resolveUrl("http://localhost:1234"));
-        assertEquals("http://localhost:1234/v1/chat/completions",
-                client.resolveUrl("http://localhost:1234/v1/chat/completions"));
+        String endpoint = "http://localhost:1234";
+        String completionEndpoint = endpoint + "/v1/chat/completions";
+
+        try (MockedStatic<UrlUtils> urlUtils = mockStatic(UrlUtils.class)) {
+            urlUtils.when(() -> UrlUtils.resolveUrl(endpoint)).thenReturn(endpoint);
+            urlUtils.when(() -> UrlUtils.resolveUrl(completionEndpoint)).thenReturn(completionEndpoint);
+
+            assertEquals(endpoint, client.resolveUrl(endpoint));
+            assertEquals(completionEndpoint, client.resolveUrl(completionEndpoint));
+
+            urlUtils.verify(() -> UrlUtils.resolveUrl(endpoint));
+            urlUtils.verify(() -> UrlUtils.resolveUrl(completionEndpoint));
+        }
     }
 }
