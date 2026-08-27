@@ -258,7 +258,7 @@ public class NetBeansFunctionExecutor {
             return FunctionResult.success("Directory listed successfully", Map.of(
                 "directoryPath", directoryPath,
                 "files", files,
-                "count", files.size(),
+                "count", files.stream().filter(file -> "file".equals(file.get("type"))).count(),
                 "recursive", recursive,
                 "includeHidden", includeHidden
             ));
