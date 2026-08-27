@@ -36,12 +36,8 @@ class LlmClientTest {
             doAnswer(invocation -> {
                 Consumer<String> onChunk = invocation.getArgument(4);
                 Runnable onComplete = invocation.getArgument(6);
-                if (onChunk != null) {
-                    onChunk.accept("mock chunk");
-                }
-                if (onComplete != null) {
-                    onComplete.run();
-                }
+                if (onChunk != null) onChunk.accept("mock chunk");
+                if (onComplete != null) onComplete.run();
                 return null;
             }).when(mock).stream(anyString(), anyString(), anyString(), anyString(), any(), any(), any());
         });
@@ -110,14 +106,14 @@ class LlmClientTest {
     }
 
     @Test
-    void testPerguntarIAAsyncWithModel() throws ExecutionException, InterruptedException {
+    void testPerguntarIAAsyncWithModel() throws Exception {
         CompletableFuture<String> result = client.perguntarIAAsync("context", "question", "test-model", "Code");
         assertEquals("mock response", result.get(1, TimeUnit.SECONDS));
         verify(provider).ask("context", "question", "test-model", "Code");
     }
 
     @Test
-    void testPerguntarIAAsyncWithoutModel() throws ExecutionException, InterruptedException {
+    void testPerguntarIAAsyncWithoutModel() throws Exception {
         try (MockedStatic<ContinueSettings> settingsMock = mockStatic(ContinueSettings.class)) {
             settingsMock.when(ContinueSettings::getModel).thenReturn("default-model");
             CompletableFuture<String> result = client.perguntarIAAsync("context", "question", null, "Code");
