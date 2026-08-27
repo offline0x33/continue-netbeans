@@ -86,21 +86,21 @@ public class ConversationManager {
      * Keeps system message (if present) as it's important for context.
      */
     private void truncateIfNeeded() {
-        while (getTokenCount() > maxTokens && messages.size() > 1) {
+        while (getTokenCount() > maxTokens) {
+            int removableIndex = -1;
             for (int i = 0; i < messages.size(); i++) {
                 String role = messages.get(i).get("role").getAsString();
                 if (!"system".equalsIgnoreCase(role)) {
-                    messages.remove(i);
+                    removableIndex = i;
                     break;
                 }
             }
 
-            if (getTokenCount() > maxTokens && messages.size() == 1) {
-                String role = messages.get(0).get("role").getAsString();
-                if (!"system".equalsIgnoreCase(role)) {
-                    messages.remove(0);
-                }
+            if (removableIndex < 0) {
+                // Only system messages remain; preserve them even when over budget.
+                break;
             }
+            messages.remove(removableIndex);
         }
     }
 
