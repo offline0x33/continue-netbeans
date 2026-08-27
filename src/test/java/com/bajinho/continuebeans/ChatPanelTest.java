@@ -1,13 +1,18 @@
 package com.bajinho.continuebeans;
 
+import com.bajinho.continuebeans.ai.LMStudioTextIntegration;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedConstruction;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
+import java.util.concurrent.CompletableFuture;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
 
 /**
  * Unit tests for ChatPanel.
@@ -17,10 +22,20 @@ import static org.junit.jupiter.api.Assertions.*;
 class ChatPanelTest {
 
     private ChatPanel chatPanel;
+    private MockedConstruction<LMStudioTextIntegration> lmStudioConstruction;
 
     @BeforeEach
     void setUp() throws Exception {
+        lmStudioConstruction = mockConstruction(LMStudioTextIntegration.class,
+                (mock, context) -> when(mock.testConnection()).thenReturn(CompletableFuture.completedFuture(false)));
         onEdt(() -> chatPanel = new ChatPanel());
+    }
+
+    @AfterEach
+    void tearDown() {
+        if (lmStudioConstruction != null) {
+            lmStudioConstruction.close();
+        }
     }
 
     @Test
