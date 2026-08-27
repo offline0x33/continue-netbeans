@@ -6,21 +6,36 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.bajinho.continuebeans.ai.LMStudioTextIntegration;
 import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.Container;
+import java.util.concurrent.CompletableFuture;
 import javax.swing.SwingUtilities;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedConstruction;
 
 /** Regression tests for the NetBeans TopComponent container. */
 class ContinueTopComponentTest {
 
     private ContinueTopComponent topComponent;
+    private MockedConstruction<LMStudioTextIntegration> lmStudioConstruction;
 
     @BeforeEach
     void setUp() throws Exception {
+        lmStudioConstruction = org.mockito.Mockito.mockConstruction(LMStudioTextIntegration.class,
+                (mock, context) -> org.mockito.Mockito.when(mock.testConnection())
+                        .thenReturn(CompletableFuture.completedFuture(false)));
         onEdt(() -> topComponent = new ContinueTopComponent());
+    }
+
+    @AfterEach
+    void tearDown() {
+        if (lmStudioConstruction != null) {
+            lmStudioConstruction.close();
+        }
     }
 
     @Test
