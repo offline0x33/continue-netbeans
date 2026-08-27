@@ -51,6 +51,9 @@ public class ChatPanel extends JPanel {
         conversation.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
         add(new JScrollPane(conversation), BorderLayout.CENTER);
 
+        JPanel bottom = new JPanel(new BorderLayout(0, 6));
+        bottom.setOpaque(false);
+
         JPanel composerPanel = new JPanel(new BorderLayout(8, 0));
         composerPanel.setOpaque(false);
         composer.setBackground(SURFACE);
@@ -62,7 +65,7 @@ public class ChatPanel extends JPanel {
         JButton send = new JButton("↑");
         send.setToolTipText("Send message");
         composerPanel.add(send, BorderLayout.EAST);
-        add(composerPanel, BorderLayout.SOUTH);
+        bottom.add(composerPanel, BorderLayout.NORTH);
 
         JPanel footer = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         footer.setOpaque(false);
@@ -72,7 +75,8 @@ public class ChatPanel extends JPanel {
         JButton refresh = new JButton("↻");
         refresh.setToolTipText("Refresh models");
         footer.add(refresh);
-        add(footer, BorderLayout.PAGE_END);
+        bottom.add(footer, BorderLayout.SOUTH);
+        add(bottom, BorderLayout.SOUTH);
 
         send.addActionListener(e -> sendMessage());
         composer.addActionListener(e -> sendMessage());
