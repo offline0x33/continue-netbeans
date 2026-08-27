@@ -49,25 +49,25 @@ class ChatPanelCoverageGapTest {
     @Test
     void rejectsMissingApiUrl() throws Exception {
         settings.when(ContinueSettings::getApiUrl).thenReturn(null);
-        assertFalse(invoke("hasConfiguredApiUrl"));
+        assertFalse((Boolean) invoke("hasConfiguredApiUrl"));
 
         settings.when(ContinueSettings::getApiUrl).thenReturn("   ");
-        assertFalse(invoke("hasConfiguredApiUrl"));
+        assertFalse((Boolean) invoke("hasConfiguredApiUrl"));
     }
 
     @Test
     void rejectsMalformedAndMissingSchemeApiUrls() throws Exception {
         settings.when(ContinueSettings::getApiUrl).thenReturn("not a url");
-        assertFalse(invoke("hasConfiguredApiUrl"));
+        assertFalse((Boolean) invoke("hasConfiguredApiUrl"));
 
         settings.when(ContinueSettings::getApiUrl).thenReturn("localhost:1234");
-        assertFalse(invoke("hasConfiguredApiUrl"));
+        assertFalse((Boolean) invoke("hasConfiguredApiUrl"));
     }
 
     @Test
     void acceptsValidConfiguredApiUrl() throws Exception {
         settings.when(ContinueSettings::getApiUrl).thenReturn("http://127.0.0.1:1234/v1/chat/completions");
-        assertTrue(invoke("hasConfiguredApiUrl"));
+        assertTrue((Boolean) invoke("hasConfiguredApiUrl"));
     }
 
     @Test
