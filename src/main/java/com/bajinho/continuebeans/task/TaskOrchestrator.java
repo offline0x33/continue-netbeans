@@ -69,6 +69,17 @@ public final class TaskOrchestrator {
     }
 
     public CompletableFuture<TaskPlan> executeGoal(String goal, String provider, Listener listener) {
+        if (listener == null) {
+            throw new IllegalArgumentException("Listener é obrigatório.");
+        }
+
+        // Context preconditions are deterministic and must not depend on a worker thread,
+        // model call or listener callback completing. Return a completed future directly.
+        if (requiresProjectContext(goal) && currentProjectRoot().isEmpty()) {
+            TaskPlan blockedPlan = failWithoutExecution(goal, listener, NO_PROJECT_MESSAGE);
+            return CompletableFuture.completedFuture(blockedPlan);
+        }
+
         return CompletableFuture.supplyAsync(() -> {
             TaskPlan plan = null;
             String planningGoal = goal;
@@ -81,10 +92,6 @@ public final class TaskOrchestrator {
                         || intentClassifier.shouldUseTaskOrchestrator(goal, mode);
                 if (!useTasks) {
                     return executeConversation(goal, provider, listener, mode);
-                }
-
-                if (requiresProjectContext(goal) && currentProjectRoot().isEmpty()) {
-                    return failWithoutExecution(goal, listener, NO_PROJECT_MESSAGE);
                 }
 
                 while (replans <= MAX_REPLANS) {
