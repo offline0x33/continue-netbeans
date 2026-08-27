@@ -1,22 +1,17 @@
 name: One-shot module runtime fix
-
 on:
   push:
-    branches: [ main ]
-
+    branches: [ fix/netbeans-module-runtime-guard-2026-08-27 ]
 permissions:
   contents: write
-
 jobs:
   patch:
-    if: github.event.head_commit.message != 'fix: guard NetBeans module lookup outside platform runtime'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-
-      - name: Patch module lookup guard
+      - name: Patch production source and remove workflow
         shell: bash
         run: |
           python3 - <<'PY'
@@ -31,12 +26,10 @@ jobs:
               raise SystemExit('guard already present')
           path.write_text(text.replace(needle, replacement, 1), encoding='utf-8')
           PY
-
           git diff --check
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add src/main/java/com/bajinho/continuebeans/ai/NetBeansFunctionExecutor.java .github/workflows/one-shot-module-runtime-fix.yml
-          git rm --cached .github/workflows/one-shot-module-runtime-fix.yml
           git rm .github/workflows/one-shot-module-runtime-fix.yml
+          git add src/main/java/com/bajinho/continuebeans/ai/NetBeansFunctionExecutor.java
           git commit -m 'fix: guard NetBeans module lookup outside platform runtime'
-          git push origin main
+          git push origin HEAD
