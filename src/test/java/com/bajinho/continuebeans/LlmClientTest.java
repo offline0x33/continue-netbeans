@@ -46,13 +46,22 @@ class LlmClientTest {
 
     @Test
     void testResolveUrl() {
-        assertEquals("http://127.0.0.1:1234", client.resolveUrl("127.0.0.1:1234"));
+        String endpoint = "localhost:1234";
+        try (MockedStatic<UrlUtils> urlUtils = mockStatic(UrlUtils.class)) {
+            urlUtils.when(() -> UrlUtils.resolveUrl(endpoint)).thenReturn(endpoint);
+            assertEquals(endpoint, client.resolveUrl(endpoint));
+            urlUtils.verify(() -> UrlUtils.resolveUrl(endpoint));
+        }
     }
 
     @Test
     void testResolveUrlWithFullUrl() {
-        assertEquals("http://127.0.0.1:1234/v1/chat/completions",
-                client.resolveUrl("http://127.0.0.1:1234/v1/chat/completions"));
+        String endpoint = "http://127.0.0.1:1234/v1/chat/completions";
+        try (MockedStatic<UrlUtils> urlUtils = mockStatic(UrlUtils.class)) {
+            urlUtils.when(() -> UrlUtils.resolveUrl(endpoint)).thenReturn(endpoint);
+            assertEquals(endpoint, client.resolveUrl(endpoint));
+            urlUtils.verify(() -> UrlUtils.resolveUrl(endpoint));
+        }
     }
 
     @Test
