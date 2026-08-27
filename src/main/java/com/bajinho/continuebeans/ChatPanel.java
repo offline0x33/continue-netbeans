@@ -11,22 +11,38 @@ import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
+import javax.swing.JMenuItem;
 import javax.swing.JPanel;
+import javax.swing.JPopupMenu;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.SwingUtilities;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
+import java.awt.BasicStroke;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.Insets;
+import java.awt.Toolkit;
+import java.awt.datatransfer.StringSelection;
+import java.awt.event.FocusAdapter;
+import java.awt.event.FocusEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.net.URI;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
-/**
- * Dark task-driven chat UI. The visual state is a projection of the real
- * TaskOrchestrator lifecycle: plan -> run -> verify -> complete/replan.
- */
+/** Canonical dark task-driven chat UI. */
 public class ChatPanel extends JPanel {
 
     private static final Color BG = new Color(0x12, 0x12, 0x14);
@@ -41,9 +57,16 @@ public class ChatPanel extends JPanel {
     private static final Color ORANGE = new Color(0xF9, 0x73, 0x16);
     private static final Color WARNING_BG = new Color(0x2D, 0x1C, 0x11);
     private static final Color WARNING_BORDER = new Color(0x52, 0x2E, 0x15);
+    private static final Color SEND_BG = new Color(0x3F, 0x3F, 0x46);
+    private static final Color HOVER = new Color(0x27, 0x27, 0x2A);
+    private static final Color FOCUS = new Color(0x3B, 0x82, 0xF6);
     private static final Font UI_FONT = new Font("Inter", Font.PLAIN, 13);
     private static final Font UI_FONT_MEDIUM = new Font("Inter", Font.BOLD, 13);
+    private static final Font SMALL_FONT = new Font("Inter", Font.PLAIN, 12);
     private static final Font CODE_FONT = new Font("JetBrains Mono", Font.PLAIN, 12);
+    private static final Pattern POSITIVE_DIFF = Pattern.compile("(?:^|\\s)\\+(\\d+)(?=\\s|$)");
+    private static final Pattern NEGATIVE_DIFF = Pattern.compile("(?:^|\\s)-(\\d+)(?=\\s|$)");
+    private static final Pattern FILE_PATTERN = Pattern.compile("(?:[A-Za-z0-9_./-]+\\.(?:java|xml|json|yaml|yml|md|properties|feature|css|js|ts))");
 
     private final LlmClient llmClient;
     private final TaskOrchestrator taskOrchestrator;
@@ -56,6 +79,8 @@ public class ChatPanel extends JPanel {
     private JComboBox<String> modeSelector;
     private boolean isProcessing;
     private TaskPlan activePlan;
+    private String lastResult = "";
+    private String lastTitle = "";
 
     public ChatPanel() {
         llmClient = new LlmClient();
@@ -65,7 +90,6 @@ public class ChatPanel extends JPanel {
         setLayout(new BorderLayout());
         setBackground(BG);
         setBorder(BorderFactory.createEmptyBorder());
-
         add(createTopBar(), BorderLayout.NORTH);
 
         conversationPanel = new JPanel();
@@ -73,18 +97,12 @@ public class ChatPanel extends JPanel {
         conversationPanel.setBackground(BG);
         conversationPanel.setBorder(BorderFactory.createEmptyBorder(12, 16, 12, 16));
 
-        JScrollPane scrollPane = new JScrollPane(conversationPanel);
-        scrollPane.setBorder(BorderFactory.createEmptyBorder());
-        scrollPane.setBackground(BG);
-        scrollPane.getViewport().setBackground(BG);
-        scrollPane.getVerticalScrollBar().setUnitIncrement(14);
-        add(scrollPane, BorderLayout.CENTER);
-
-        JPanel bottom = new JPanel(new BorderLayout());
-        bottom.setBackground(BG);
-        bottom.add(createInputBox(), BorderLayout.CENTER);
-        bottom.add(createFooter(), BorderLayout.SOUTH);
-        add(bottom, BorderLayout.SOUTH);
+        JScrollPane scroll = new JScrollPane(conversationPanel);
+        scroll.setBorder(BorderFactory.createEmptyBorder());
+        scroll.setBackground(BG);
+        scroll.getViewport().setBackground(BG);
+        scroll.getVerticalScrollBar().setUnitIncrement(14);
+        add(scroll, BorderLayout.CENTER);
 
         taskPanelHost = new JPanel(new BorderLayout());
         taskPanelHost.setOpaque(false);
@@ -95,8 +113,17 @@ public class ChatPanel extends JPanel {
         statusLabel.setForeground(SECONDARY);
         statusLabel.setFont(UI_FONT);
 
+        JPanel bottom = new JPanel(new BorderLayout());
+        bottom.setBackground(BG);
+        bottom.add(createInputBox(), BorderLayout.CENTER);
+        bottom.add(createFooter(), BorderLayout.SOUTH);
+        add(bottom, BorderLayout.SOUTH);
+
         conversationPanel.add(createThoughtLine("Ready. Describe what you want changed."));
         conversationPanel.add(Box.createVerticalStrut(8));
+        if (hasConfiguredApiUrl()) {
+            refreshModels();
+        }
     }
 
     private JPanel createTopBar() {
@@ -112,16 +139,14 @@ public class ChatPanel extends JPanel {
         JLabel title = new JLabel("NetBeans Plugin Integration");
         title.setForeground(PRIMARY);
         title.setFont(UI_FONT_MEDIUM);
-        JButton close = iconButton("×");
         tab.add(icon);
         tab.add(title);
-        tab.add(close);
+        tab.add(iconButton("×"));
         bar.add(tab, BorderLayout.CENTER);
 
-        JButton split = iconButton("▥");
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 6));
         actions.setOpaque(false);
-        actions.add(split);
+        actions.add(iconButton("▥"));
         bar.add(actions, BorderLayout.EAST);
         return bar;
     }
@@ -131,10 +156,11 @@ public class ChatPanel extends JPanel {
         wrapper.setBackground(BG);
         wrapper.setBorder(BorderFactory.createEmptyBorder(8, 16, 4, 16));
 
-        JPanel box = roundedPanel(PANEL, BORDER);
+        JPanel box = roundedPanel(PANEL, BORDER, 12);
         box.setLayout(new BorderLayout(8, 8));
         box.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(BORDER), BorderFactory.createEmptyBorder(10, 12, 8, 12)));
+                roundedBorder(BORDER, 12),
+                BorderFactory.createEmptyBorder(10, 12, 8, 12)));
 
         JLabel hint = new JLabel("Tip: Type @ conversation to bring in context from another chat");
         hint.setForeground(MUTED);
@@ -142,38 +168,55 @@ public class ChatPanel extends JPanel {
 
         promptInput = new JTextField();
         promptInput.setOpaque(false);
-        promptInput.setBorder(BorderFactory.createEmptyBorder(0, 0, 2, 0));
+        promptInput.setBorder(BorderFactory.createEmptyBorder(5, 2, 5, 2));
         promptInput.setForeground(PRIMARY);
         promptInput.setCaretColor(PRIMARY);
         promptInput.setFont(UI_FONT);
-        promptInput.addActionListener(e -> sendPrompt());
+        promptInput.addActionListener(event -> sendPrompt());
+        promptInput.addFocusListener(new FocusAdapter() {
+            @Override public void focusGained(FocusEvent e) { box.setBorder(BorderFactory.createCompoundBorder(roundedBorder(FOCUS, 12), BorderFactory.createEmptyBorder(10, 12, 8, 12))); box.repaint(); }
+            @Override public void focusLost(FocusEvent e) { box.setBorder(BorderFactory.createCompoundBorder(roundedBorder(BORDER, 12), BorderFactory.createEmptyBorder(10, 12, 8, 12))); box.repaint(); }
+        });
+        promptInput.getDocument().addDocumentListener(new DocumentListener() {
+            public void insertUpdate(DocumentEvent e) { updateSendAvailability(); }
+            public void removeUpdate(DocumentEvent e) { updateSendAvailability(); }
+            public void changedUpdate(DocumentEvent e) { updateSendAvailability(); }
+        });
 
         JPanel controls = new JPanel(new BorderLayout());
         controls.setOpaque(false);
-
         JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
         left.setOpaque(false);
-        JButton attach = smallControl("+");
-        JButton code = smallControl("<> Code");
-        modeSelector = new JComboBox<>(new String[]{"SWE-1.6 Slow", "LM Studio", "OpenAI-compatible"});
-        modeSelector.setSelectedIndex(1);
+        left.add(smallControl("+"));
+        left.add(smallControl("<> Code"));
+
+        modeSelector = new JComboBox<>();
         modeSelector.setFont(UI_FONT);
         modeSelector.setForeground(PRIMARY);
         modeSelector.setBackground(PANEL);
-        left.add(attach);
-        left.add(code);
+        modeSelector.setEditable(false);
+        modeSelector.addActionListener(event -> persistSelectedModel());
+        String configuredModel = ContinueSettings.getModel();
+        if (configuredModel != null && !configuredModel.isBlank()) {
+            modeSelector.addItem(configuredModel);
+            modeSelector.setSelectedItem(configuredModel);
+        } else {
+            modeSelector.addItem("Loading models…");
+        }
         left.add(modeSelector);
+
+        JButton refresh = smallControl("↻");
+        refresh.setToolTipText("Refresh models");
+        refresh.addActionListener(event -> refreshModels());
+        left.add(refresh);
 
         JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
         right.setOpaque(false);
-        JButton sync = smallControl("↻ Sync");
-        JButton mic = smallControl("◉");
+        right.add(statusLabel);
         sendButton = roundButton("↑");
-        sendButton.addActionListener(e -> sendPrompt());
-        right.add(sync);
-        right.add(mic);
+        sendButton.setToolTipText("Send");
+        sendButton.addActionListener(event -> sendPrompt());
         right.add(sendButton);
-
         controls.add(left, BorderLayout.WEST);
         controls.add(right, BorderLayout.EAST);
 
@@ -182,9 +225,9 @@ public class ChatPanel extends JPanel {
         center.add(hint, BorderLayout.NORTH);
         center.add(promptInput, BorderLayout.CENTER);
         center.add(controls, BorderLayout.SOUTH);
-
         box.add(center, BorderLayout.CENTER);
         wrapper.add(box, BorderLayout.CENTER);
+        updateSendAvailability();
         return wrapper;
     }
 
@@ -194,104 +237,152 @@ public class ChatPanel extends JPanel {
         footer.setBorder(BorderFactory.createEmptyBorder(0, 16, 6, 16));
         JLabel left = new JLabel("▰ Local   |   ▰ continue-netbeans");
         left.setForeground(SECONDARY);
-        left.setFont(new Font("Inter", Font.PLAIN, 12));
+        left.setFont(SMALL_FONT);
         JLabel right = new JLabel("Ready");
         right.setForeground(SECONDARY);
-        right.setFont(new Font("Inter", Font.PLAIN, 12));
+        right.setFont(SMALL_FONT);
         footer.add(left, BorderLayout.WEST);
         footer.add(right, BorderLayout.EAST);
         return footer;
     }
 
-    private void sendPrompt() {
-        String prompt = promptInput.getText().trim();
-        if (prompt.isEmpty() || isProcessing) {
+    private boolean hasConfiguredApiUrl() {
+        String apiUrl = ContinueSettings.getApiUrl();
+        if (apiUrl == null || apiUrl.isBlank()) {
+            return false;
+        }
+        try {
+            URI uri = URI.create(apiUrl.trim());
+            return uri.getScheme() != null && !uri.getScheme().isBlank();
+        } catch (IllegalArgumentException ignored) {
+            return false;
+        }
+    }
+
+    private void refreshModels() {
+        if (!hasConfiguredApiUrl()) {
+            updateStatus("Configure AI API", ORANGE);
             return;
         }
 
+        updateStatus("Loading models…", SECONDARY);
+        CompletableFuture<List<String>> future = llmClient.getModelosDisponiveisAsync();
+        future.thenAccept(models -> SwingUtilities.invokeLater(() -> {
+            String selected = ContinueSettings.getModel();
+            modeSelector.removeAllItems();
+            if (models != null) {
+                for (String model : models) {
+                    if (model != null && !model.isBlank()) {
+                        modeSelector.addItem(model);
+                    }
+                }
+            }
+            if (modeSelector.getItemCount() == 0) {
+                if (selected != null && !selected.isBlank()) {
+                    modeSelector.addItem(selected);
+                } else {
+                    modeSelector.addItem("No models available");
+                }
+            }
+            if (selected != null && !selected.isBlank() && containsItem(selected)) {
+                modeSelector.setSelectedItem(selected);
+            } else if (modeSelector.getItemCount() > 0) {
+                Object first = modeSelector.getItemAt(0);
+                if (first instanceof String && !((String) first).equals("No models available")) {
+                    ContinueSettings.setModel((String) first);
+                    modeSelector.setSelectedItem(first);
+                }
+            }
+            updateStatus("Models ready", SECONDARY);
+        })).exceptionally(error -> {
+            SwingUtilities.invokeLater(() -> {
+                String selected = ContinueSettings.getModel();
+                if ((modeSelector.getItemCount() == 0 || "Loading models…".equals(modeSelector.getItemAt(0)))
+                        && selected != null && !selected.isBlank()) {
+                    modeSelector.removeAllItems();
+                    modeSelector.addItem(selected);
+                    modeSelector.setSelectedItem(selected);
+                }
+                updateStatus("Model discovery failed", ORANGE);
+            });
+            return null;
+        });
+    }
+
+    private boolean containsItem(String value) {
+        for (int index = 0; index < modeSelector.getItemCount(); index++) {
+            if (value.equals(modeSelector.getItemAt(index))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void persistSelectedModel() {
+        if (modeSelector == null || modeSelector.getSelectedItem() == null) return;
+        String selected = String.valueOf(modeSelector.getSelectedItem());
+        if (!selected.isBlank() && !selected.endsWith("…") && !selected.equals("No models available")) {
+            ContinueSettings.setModel(selected);
+            updateStatus("Model: " + selected, SECONDARY);
+        }
+    }
+
+    private String getSelectedModel() {
+        Object selected = modeSelector == null ? null : modeSelector.getSelectedItem();
+        if (selected == null) return ContinueSettings.getModel();
+        String model = String.valueOf(selected).trim();
+        return model.isBlank() || model.endsWith("…") || model.equals("No models available") ? ContinueSettings.getModel() : model;
+    }
+
+    private void updateSendAvailability() {
+        if (sendButton != null) {
+            sendButton.setEnabled(!isProcessing && promptInput != null && !promptInput.getText().trim().isEmpty());
+        }
+    }
+
+    private void sendPrompt() {
+        String prompt = promptInput.getText().trim();
+        if (prompt.isEmpty() || isProcessing) return;
+        String selectedModel = getSelectedModel();
+        if (selectedModel == null || selectedModel.isBlank()) {
+            updateStatus("Select a model first", ORANGE);
+            return;
+        }
+        ContinueSettings.setModel(selectedModel);
         isProcessing = true;
         sendButton.setEnabled(false);
         promptInput.setEnabled(false);
         modeSelector.setEnabled(false);
         appendMessage("You", prompt, PRIMARY);
         appendThought("Thought for 0s", "Planning task graph...");
-
-        String provider = "lmstudio";
-        taskOrchestrator.executeGoal(prompt, provider, new TaskOrchestrator.Listener() {
-            @Override
-            public void onPlanCreated(TaskPlan plan) {
-                SwingUtilities.invokeLater(() -> {
-                    activePlan = plan;
-                    rebuildTaskPanel();
-                    appendTaskPanel();
-                    updateStatus("Planning complete", BLUE);
-                });
+        taskOrchestrator.executeGoal(prompt, "lmstudio", new TaskOrchestrator.Listener() {
+            @Override public void onPlanCreated(TaskPlan plan) {
+                SwingUtilities.invokeLater(() -> { activePlan = plan; rebuildTaskPanel(); appendTaskPanel(); updateStatus("Planning complete", BLUE); appendActivity("Planner", "Task graph created", BLUE); });
             }
-            @Override
-            public void onTaskStarted(AgentTask task) {
-                SwingUtilities.invokeLater(() -> {
-                    updateStatus("Running: " + task.getTitle(), ORANGE);
-                    appendThought("Working on: " + task.getTitle(), "Attempt " + task.getAttempts());
-                    rebuildTaskPanel();
-                });
+            @Override public void onTaskStarted(AgentTask task) {
+                SwingUtilities.invokeLater(() -> { updateStatus("Running: " + task.getTitle(), ORANGE); appendThought("Working on: " + task.getTitle(), "Attempt " + task.getAttempts()); appendActivity("Tool", task.getTitle(), ORANGE); rebuildTaskPanel(); });
             }
-            @Override
-            public void onTaskVerifying(AgentTask task) {
-                SwingUtilities.invokeLater(() -> {
-                    updateStatus("Verifying: " + task.getTitle(), ORANGE);
-                    appendThought("Verifying", task.getTitle());
-                    rebuildTaskPanel();
-                });
+            @Override public void onTaskVerifying(AgentTask task) {
+                SwingUtilities.invokeLater(() -> { updateStatus("Verifying: " + task.getTitle(), ORANGE); appendThought("Verifying", task.getTitle()); appendActivity("Verify", task.getTitle(), ORANGE); rebuildTaskPanel(); });
             }
-            @Override
-            public void onTaskCompleted(AgentTask task) {
-                SwingUtilities.invokeLater(() -> {
-                    rebuildTaskPanel();
-                    if (task.getLastResult() != null && !task.getLastResult().isBlank()) {
-                        appendCodeResult(task.getTitle(), task.getLastResult());
-                    }
-                });
+            @Override public void onTaskCompleted(AgentTask task) {
+                SwingUtilities.invokeLater(() -> { rebuildTaskPanel(); if (task.getLastResult() != null && !task.getLastResult().isBlank()) { lastResult = task.getLastResult(); lastTitle = task.getTitle(); appendCodeResult(task.getTitle(), task.getLastResult()); appendActivity("File", extractFileReference(task.getTitle(), task.getLastResult()), GREEN); } });
             }
-            @Override
-            public void onTaskFailed(AgentTask task) {
-                SwingUtilities.invokeLater(() -> {
-                    rebuildTaskPanel();
-                    appendThought("Task failed", task.getLastError());
-                    updateStatus("Task failed", RED);
-                });
+            @Override public void onTaskFailed(AgentTask task) {
+                SwingUtilities.invokeLater(() -> { rebuildTaskPanel(); appendThought("Task failed", task.getLastError()); appendActivity("Error", task.getLastError(), RED); updateStatus("Task failed", RED); });
             }
-            @Override
-            public void onReplanning(TaskPlan failedPlan) {
-                SwingUtilities.invokeLater(() -> {
-                    activePlan = failedPlan;
-                    rebuildTaskPanel();
-                    appendThought("Replanning", "Previous failure preserved as context");
-                    updateStatus("Replanning", ORANGE);
-                });
+            @Override public void onReplanning(TaskPlan failedPlan) {
+                SwingUtilities.invokeLater(() -> { activePlan = failedPlan; rebuildTaskPanel(); appendThought("Replanning", "Previous failure preserved as context"); appendActivity("Planner", "Rebuilding task graph", ORANGE); updateStatus("Replanning", ORANGE); });
             }
-            @Override
-            public void onCompleted(TaskPlan plan) {
-                SwingUtilities.invokeLater(() -> {
-                    activePlan = plan;
-                    rebuildTaskPanel();
-                    appendThought("Objective completed", "All tasks verified");
-                    appendActions();
-                    updateStatus("Completed", GREEN);
-                    resetInputState();
-                });
+            @Override public void onCompleted(TaskPlan plan) {
+                SwingUtilities.invokeLater(() -> { activePlan = plan; rebuildTaskPanel(); appendThought("Objective completed", "All tasks verified"); appendActions(); updateStatus("Completed", GREEN); resetInputState(); });
             }
-            @Override
-            public void onFailed(String message, TaskPlan plan) {
-                SwingUtilities.invokeLater(() -> {
-                    activePlan = plan;
-                    rebuildTaskPanel();
-                    appendWarning(message);
-                    updateStatus("Failed", RED);
-                    resetInputState();
-                });
+            @Override public void onFailed(String message, TaskPlan plan) {
+                SwingUtilities.invokeLater(() -> { activePlan = plan; rebuildTaskPanel(); appendWarning(message); appendActivity("Error", message, RED); updateStatus("Failed", RED); resetInputState(); });
             }
         });
         promptInput.setText("");
+        updateSendAvailability();
     }
 
     private void appendMessage(String author, String message, Color color) {
@@ -310,6 +401,42 @@ public class ChatPanel extends JPanel {
         conversationPanel.add(createThoughtLine(title + "   " + detail));
         conversationPanel.add(Box.createVerticalStrut(4));
         refreshConversation();
+    }
+
+    private void appendActivity(String kind, String text, Color color) {
+        JPanel row = new JPanel(new BorderLayout(8, 0));
+        row.setOpaque(false);
+        row.setBorder(BorderFactory.createEmptyBorder(2, 2, 2, 2));
+        JLabel icon = new JLabel(activityIcon(kind));
+        icon.setForeground(color);
+        icon.setFont(UI_FONT_MEDIUM);
+        JLabel value = new JLabel("<html><span style='color:#A1A1AA'>" + escape(kind) + "</span> &nbsp; <span style='color:#60A5FA'>" + escape(text) + "</span></html>");
+        value.setFont(SMALL_FONT);
+        value.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        value.setToolTipText(text);
+        row.add(icon, BorderLayout.WEST);
+        row.add(value, BorderLayout.CENTER);
+        conversationPanel.add(row);
+        conversationPanel.add(Box.createVerticalStrut(3));
+        refreshConversation();
+    }
+
+    private String activityIcon(String kind) {
+        switch (kind) {
+            case "File": return "▱";
+            case "Tool": return "⚙";
+            case "Verify": return "✓";
+            case "Planner": return "◇";
+            case "Error": return "!";
+            default: return "•";
+        }
+    }
+
+    private String extractFileReference(String title, String result) {
+        Matcher matcher = FILE_PATTERN.matcher(result == null ? "" : result);
+        if (matcher.find()) return matcher.group();
+        matcher = FILE_PATTERN.matcher(title == null ? "" : title);
+        return matcher.find() ? matcher.group() : (title == null ? "result" : title);
     }
 
     private void appendTaskPanel() {
@@ -334,23 +461,13 @@ public class ChatPanel extends JPanel {
 
     private void rebuildTaskPanel() {
         taskPanelHost.removeAll();
-        if (activePlan == null) {
-            return;
-        }
-
+        if (activePlan == null) return;
         int done = 0;
-        for (AgentTask task : activePlan.getTasks()) {
-            if (task.getStatus() == TaskStatus.DONE) {
-                done++;
-            }
-        }
+        for (AgentTask task : activePlan.getTasks()) if (task.getStatus() == TaskStatus.DONE) done++;
         taskProgressLabel.setText(done + " / " + activePlan.getTasks().size() + " tasks done");
-
-        JPanel card = roundedPanel(PANEL, BORDER);
+        JPanel card = roundedPanel(PANEL, BORDER, 8);
         card.setLayout(new BorderLayout());
-        card.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(BORDER), BorderFactory.createEmptyBorder(10, 12, 10, 12)));
-
+        card.setBorder(BorderFactory.createCompoundBorder(roundedBorder(BORDER, 8), BorderFactory.createEmptyBorder(10, 12, 10, 12)));
         JPanel header = new JPanel(new BorderLayout());
         header.setOpaque(false);
         JLabel chevron = new JLabel("⌄");
@@ -358,14 +475,10 @@ public class ChatPanel extends JPanel {
         chevron.setFont(UI_FONT_MEDIUM);
         header.add(chevron, BorderLayout.WEST);
         header.add(taskProgressLabel, BorderLayout.CENTER);
-
         JPanel items = new JPanel();
         items.setOpaque(false);
         items.setLayout(new BoxLayout(items, BoxLayout.Y_AXIS));
-        for (AgentTask task : activePlan.getTasks()) {
-            items.add(taskRow(task));
-        }
-
+        for (AgentTask task : activePlan.getTasks()) items.add(taskRow(task));
         card.add(header, BorderLayout.NORTH);
         card.add(items, BorderLayout.CENTER);
         taskPanelHost.add(card, BorderLayout.CENTER);
@@ -378,40 +491,66 @@ public class ChatPanel extends JPanel {
         JPanel row = new JPanel(new BorderLayout(8, 0));
         row.setOpaque(false);
         row.setBorder(BorderFactory.createEmptyBorder(4, 0, 4, 0));
-
         JLabel state = new JLabel(taskIcon(task.getStatus()));
         state.setFont(UI_FONT_MEDIUM);
         state.setForeground(taskColor(task.getStatus()));
-
         JLabel title = new JLabel(escape(task.getTitle()));
         title.setForeground(task.getStatus() == TaskStatus.PENDING ? SECONDARY : PRIMARY);
         title.setFont(UI_FONT);
-
         row.add(state, BorderLayout.WEST);
         row.add(title, BorderLayout.CENTER);
         return row;
     }
 
     private void appendCodeResult(String title, String result) {
-        String normalized = result.length() > 700 ? result.substring(0, 700) + "…" : result;
-        JPanel card = roundedPanel(PANEL, BORDER);
+        DiffStats diff = DiffStats.from(result);
+        String fileName = extractFileReference(title, result);
+        JPanel card = roundedPanel(PANEL, BORDER, 8);
         card.setLayout(new BorderLayout(8, 8));
-        card.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(BORDER), BorderFactory.createEmptyBorder(10, 12, 10, 12)));
-
-        JLabel header = new JLabel("▰  " + escape(title) + "   +result");
-        header.setForeground(PRIMARY);
-        header.setFont(UI_FONT_MEDIUM);
-        JTextArea code = new JTextArea(normalized);
+        card.setBorder(BorderFactory.createCompoundBorder(roundedBorder(BORDER, 8), BorderFactory.createEmptyBorder(10, 12, 10, 12)));
+        JPanel header = new JPanel(new BorderLayout(8, 0));
+        header.setOpaque(false);
+        JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        left.setOpaque(false);
+        JLabel icon = new JLabel("▰");
+        icon.setForeground(SECONDARY);
+        JLabel name = new JLabel(escape(fileName));
+        name.setForeground(PRIMARY);
+        name.setFont(UI_FONT_MEDIUM);
+        left.add(icon);
+        left.add(name);
+        if (diff.newFile) {
+            JLabel badge = new JLabel("new");
+            badge.setForeground(GREEN);
+            badge.setOpaque(true);
+            badge.setBackground(new Color(0x16, 0x3B, 0x2A));
+            badge.setBorder(BorderFactory.createEmptyBorder(2, 6, 2, 6));
+            badge.setFont(SMALL_FONT);
+            left.add(badge);
+        }
+        JPanel counters = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        counters.setOpaque(false);
+        JLabel added = new JLabel("+" + diff.added);
+        added.setForeground(GREEN);
+        added.setFont(CODE_FONT);
+        JLabel removed = new JLabel("-" + diff.removed);
+        removed.setForeground(RED);
+        removed.setFont(CODE_FONT);
+        counters.add(added);
+        counters.add(removed);
+        header.add(left, BorderLayout.WEST);
+        header.add(counters, BorderLayout.EAST);
+        JTextArea code = new JTextArea(result);
         code.setEditable(false);
         code.setLineWrap(false);
         code.setFont(CODE_FONT);
         code.setForeground(PRIMARY);
         code.setBackground(PANEL);
-        code.setBorder(BorderFactory.createEmptyBorder());
+        code.setCaretColor(PRIMARY);
+        code.setBorder(BorderFactory.createEmptyBorder(6, 8, 6, 8));
         JScrollPane scroll = new JScrollPane(code);
-        scroll.setBorder(BorderFactory.createLineBorder(BORDER));
-        scroll.setPreferredSize(new Dimension(10, 110));
+        scroll.setBorder(roundedBorder(BORDER, 6));
+        scroll.setPreferredSize(new Dimension(10, Math.min(260, Math.max(90, result.split("\\R", -1).length * 18))));
         card.add(header, BorderLayout.NORTH);
         card.add(scroll, BorderLayout.CENTER);
         card.setAlignmentX(LEFT_ALIGNMENT);
@@ -420,11 +559,68 @@ public class ChatPanel extends JPanel {
         refreshConversation();
     }
 
+    private void appendActions() {
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
+        actions.setOpaque(false);
+        JButton like = iconButton("👍");
+        like.setToolTipText("Good response");
+        like.addActionListener(event -> updateStatus("Feedback recorded", GREEN));
+        JButton dislike = iconButton("👎");
+        dislike.setToolTipText("Poor response");
+        dislike.addActionListener(event -> updateStatus("Feedback recorded", ORANGE));
+        JButton copy = iconButton("□");
+        copy.setToolTipText("Copy result");
+        copy.addActionListener(event -> copyLastResult());
+        JButton view = iconButton("▣");
+        view.setToolTipText("Show response details");
+        view.addActionListener(event -> showDetails());
+        JButton more = iconButton("…");
+        more.setToolTipText("More options");
+        more.addActionListener(event -> showMoreMenu(more));
+        actions.add(like);
+        actions.add(dislike);
+        actions.add(copy);
+        actions.add(view);
+        actions.add(more);
+        actions.setAlignmentX(LEFT_ALIGNMENT);
+        conversationPanel.add(actions);
+        conversationPanel.add(Box.createVerticalStrut(8));
+        refreshConversation();
+    }
+
+    private void showDetails() {
+        String file = lastTitle == null || lastTitle.isBlank() ? "response" : extractFileReference(lastTitle, lastResult);
+        updateStatus("Response details: " + file, BLUE);
+    }
+
+    private void showMoreMenu(JButton anchor) {
+        JPopupMenu menu = new JPopupMenu();
+        JMenuItem copy = new JMenuItem("Copy result");
+        copy.addActionListener(event -> copyLastResult());
+        JMenuItem clear = new JMenuItem("Clear conversation");
+        clear.addActionListener(event -> clearChat());
+        menu.add(copy);
+        menu.add(clear);
+        menu.show(anchor, 0, anchor.getHeight());
+    }
+
+    private void copyLastResult() {
+        if (lastResult.isBlank()) {
+            updateStatus("Nothing to copy", SECONDARY);
+            return;
+        }
+        try {
+            Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(lastResult), null);
+            updateStatus("Result copied", GREEN);
+        } catch (IllegalStateException error) {
+            updateStatus("Clipboard unavailable", RED);
+        }
+    }
+
     private void appendWarning(String message) {
-        JPanel warning = roundedPanel(WARNING_BG, WARNING_BORDER);
+        JPanel warning = roundedPanel(WARNING_BG, WARNING_BORDER, 8);
         warning.setLayout(new BorderLayout(8, 0));
-        warning.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(WARNING_BORDER), BorderFactory.createEmptyBorder(10, 12, 10, 12)));
+        warning.setBorder(BorderFactory.createCompoundBorder(roundedBorder(WARNING_BORDER, 8), BorderFactory.createEmptyBorder(10, 12, 10, 12)));
         JLabel icon = new JLabel("▲");
         icon.setForeground(ORANGE);
         JLabel text = new JLabel("<html>" + escape(message) + "</html>");
@@ -438,20 +634,6 @@ public class ChatPanel extends JPanel {
         refreshConversation();
     }
 
-    private void appendActions() {
-        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
-        actions.setOpaque(false);
-        actions.add(iconButton("♥"));
-        actions.add(iconButton("♧"));
-        actions.add(iconButton("□"));
-        actions.add(iconButton("▣"));
-        actions.add(iconButton("…"));
-        actions.setAlignmentX(LEFT_ALIGNMENT);
-        conversationPanel.add(actions);
-        conversationPanel.add(Box.createVerticalStrut(8));
-        refreshConversation();
-    }
-
     private JButton smallControl(String text) {
         JButton button = new JButton(text);
         button.setFont(UI_FONT);
@@ -460,6 +642,7 @@ public class ChatPanel extends JPanel {
         button.setFocusPainted(false);
         button.setBorder(BorderFactory.createEmptyBorder(5, 7, 5, 7));
         button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        installHover(button, PANEL, HOVER);
         return button;
     }
 
@@ -470,6 +653,8 @@ public class ChatPanel extends JPanel {
         button.setBackground(BG);
         button.setFocusPainted(false);
         button.setBorder(BorderFactory.createEmptyBorder(2, 4, 2, 4));
+        button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        installHover(button, BG, HOVER);
         return button;
     }
 
@@ -477,56 +662,78 @@ public class ChatPanel extends JPanel {
         JButton button = new JButton(text);
         button.setFont(UI_FONT_MEDIUM);
         button.setForeground(PRIMARY);
-        button.setBackground(new Color(0x3F, 0x3F, 0x46));
+        button.setBackground(SEND_BG);
         button.setFocusPainted(false);
         button.setBorder(BorderFactory.createEmptyBorder(7, 11, 7, 11));
+        button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        installHover(button, SEND_BG, HOVER);
         return button;
     }
 
-    private JPanel roundedPanel(Color background, Color border) {
-        JPanel panel = new JPanel();
+    private void installHover(JButton button, Color normal, Color hover) {
+        button.addMouseListener(new MouseAdapter() {
+            @Override public void mouseEntered(MouseEvent e) { if (button.isEnabled()) button.setBackground(hover); }
+            @Override public void mouseExited(MouseEvent e) { button.setBackground(normal); }
+        });
+    }
+
+    private JPanel roundedPanel(Color background, Color border, int radius) {
+        JPanel panel = new JPanel() {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(getBackground());
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), radius, radius);
+                g2.dispose();
+                super.paintComponent(g);
+            }
+        };
+        panel.setOpaque(false);
         panel.setBackground(background);
-        panel.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(border, 1),
-                BorderFactory.createEmptyBorder(1, 1, 1, 1)));
+        panel.setBorder(roundedBorder(border, radius));
         return panel;
+    }
+
+    private static javax.swing.border.Border roundedBorder(Color color, int radius) {
+        return new javax.swing.border.Border() {
+            public void paintBorder(java.awt.Component c, Graphics g, int x, int y, int width, int height) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setColor(color);
+                g2.setStroke(new BasicStroke(1f));
+                g2.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.drawRoundRect(x, y, width - 1, height - 1, radius, radius);
+                g2.dispose();
+            }
+            public Insets getBorderInsets(java.awt.Component c) { return new Insets(1, 1, 1, 1); }
+            public boolean isBorderOpaque() { return false; }
+        };
     }
 
     private String taskIcon(TaskStatus status) {
         switch (status) {
-            case DONE:
-                return "✓";
-            case RUNNING:
-                return "●";
-            case VERIFYING:
-                return "◐";
-            case BLOCKED:
-            case FAILED:
-                return "✕";
-            default:
-                return "○";
+            case DONE: return "✓";
+            case RUNNING: return "●";
+            case VERIFYING: return "◌";
+            case FAILED: return "!";
+            case BLOCKED: return "×";
+            default: return "○";
         }
     }
 
     private Color taskColor(TaskStatus status) {
         switch (status) {
-            case DONE:
-                return GREEN;
-            case RUNNING:
-            case VERIFYING:
-                return ORANGE;
-            case BLOCKED:
+            case DONE: return GREEN;
             case FAILED:
-                return RED;
-            default:
-                return SECONDARY;
+            case BLOCKED: return RED;
+            case RUNNING:
+            case VERIFYING: return ORANGE;
+            default: return new Color(0x52, 0x52, 0x5B);
         }
     }
 
     private void updateStatus(String text, Color color) {
         statusLabel.setText(text);
         statusLabel.setForeground(color);
-        refreshConversation();
     }
 
     private void resetInputState() {
@@ -534,26 +741,71 @@ public class ChatPanel extends JPanel {
         sendButton.setEnabled(true);
         promptInput.setEnabled(true);
         modeSelector.setEnabled(true);
+        promptInput.requestFocus();
+        updateSendAvailability();
     }
 
     private void refreshConversation() {
         conversationPanel.revalidate();
         conversationPanel.repaint();
-        SwingUtilities.invokeLater(() -> {
-            if (conversationPanel.getParent() instanceof javax.swing.JViewport) {
-                JScrollPane scrollPane = (JScrollPane) conversationPanel.getParent().getParent();
-                scrollPane.getVerticalScrollBar().setValue(scrollPane.getVerticalScrollBar().getMaximum());
-            }
-        });
     }
 
-    private String escape(String text) {
-        if (text == null) {
-            return "";
+    private static String escape(String text) {
+        if (text == null) return "";
+        return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+    }
+
+    public void clearChat() {
+        conversationPanel.removeAll();
+        activePlan = null;
+        lastResult = "";
+        lastTitle = "";
+        conversationPanel.add(createThoughtLine("Ready. Describe what you want changed."));
+        conversationPanel.add(Box.createVerticalStrut(8));
+        updateStatus("Ready", SECONDARY);
+        refreshConversation();
+    }
+
+    public LlmClient getLlmClient() {
+        return llmClient;
+    }
+
+    public boolean isProcessing() {
+        return isProcessing;
+    }
+
+    private static final class DiffStats {
+        private final int added;
+        private final int removed;
+        private final boolean newFile;
+
+        private DiffStats(int added, int removed, boolean newFile) {
+            this.added = added;
+            this.removed = removed;
+            this.newFile = newFile;
         }
-        return text.replace("&", "&amp;")
-                .replace("<", "&lt;")
-                .replace(">", "&gt;")
-                .replace("\"", "&quot;");
+
+        private static DiffStats from(String value) {
+            int added = find(POSITIVE_DIFF, value);
+            int removed = find(NEGATIVE_DIFF, value);
+            boolean newFile = value.contains("new file") || value.contains("@@");
+            if (added == 0 && removed == 0) {
+                String[] lines = value.split("\\R", -1);
+                int additions = 0;
+                int deletions = 0;
+                for (String line : lines) {
+                    if (line.startsWith("+")) additions++;
+                    if (line.startsWith("-")) deletions++;
+                }
+                added = additions;
+                removed = deletions;
+            }
+            return new DiffStats(added, removed, newFile);
+        }
+
+        private static int find(Pattern pattern, String value) {
+            Matcher matcher = pattern.matcher(value == null ? "" : value);
+            return matcher.find() ? Integer.parseInt(matcher.group(1)) : 0;
+        }
     }
 }
