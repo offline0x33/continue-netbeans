@@ -9,6 +9,7 @@ import java.awt.Container;
 import java.awt.Color;
 import javax.swing.JLabel;
 import javax.swing.JScrollPane;
+import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import org.junit.jupiter.api.Test;
 
@@ -27,7 +28,7 @@ class ChatPanelUiContractTest {
     @Test
     void exposesRequiredComposerAndFooterText() {
         ChatPanel panel = new ChatPanel();
-        String text = collectLabels(panel);
+        String text = collectVisibleText(panel);
 
         assertTrue(text.contains("Tip: Type @ conversation"));
         assertTrue(text.contains("Local"));
@@ -39,7 +40,7 @@ class ChatPanelUiContractTest {
     @Test
     void startsWithReadyState() {
         ChatPanel panel = new ChatPanel();
-        assertTrue(collectLabels(panel).contains("Ready. Describe what you want changed."));
+        assertTrue(collectVisibleText(panel).contains("Ready. Describe what you want changed."));
     }
 
     private static int countComponents(Container root, Class<? extends Component> type) {
@@ -55,14 +56,16 @@ class ChatPanelUiContractTest {
         return count;
     }
 
-    private static String collectLabels(Container root) {
+    private static String collectVisibleText(Container root) {
         StringBuilder text = new StringBuilder();
         for (Component component : root.getComponents()) {
             if (component instanceof JLabel) {
                 text.append(((JLabel) component).getText()).append('\n');
+            } else if (component instanceof JTextArea) {
+                text.append(((JTextArea) component).getText()).append('\n');
             }
             if (component instanceof Container) {
-                text.append(collectLabels((Container) component));
+                text.append(collectVisibleText((Container) component));
             }
         }
         return text.toString();
