@@ -20,7 +20,7 @@ class ConversationManagerCoverageGapTest {
         assertEquals("[user]: hello\n[assistant]: world\n", manager.getConversationHistory());
         JsonArray array = manager.getMessagesArray();
         array.get(0).getAsJsonObject().addProperty("content", "changed");
-        assertEquals("hello", manager.getLastMessages(1).get(0).get("content").getAsString());
+        assertEquals("hello", manager.getLastMessages(2).get(0).get("content").getAsString());
     }
 
     @Test
@@ -43,7 +43,8 @@ class ConversationManagerCoverageGapTest {
         ConversationManager manager = new ConversationManager(5);
         manager.addMessage("system", "system message");
         manager.addMessage("user", "one two three four five six");
-        assertTrue(manager.getMessageCount() <= 1);
+        assertEquals(1, manager.getMessageCount());
+        assertEquals("system", manager.getLastMessages(1).get(0).get("role").getAsString());
         manager.clear();
         assertEquals(0, manager.getMessageCount());
         assertEquals(5, manager.getRemainingTokens());
@@ -55,7 +56,8 @@ class ConversationManagerCoverageGapTest {
         ConversationManager manager = new ConversationManager(100);
         manager.addMessage("user", "one two three four five");
         manager.setMaxTokens(1);
-        assertTrue(manager.getTokenCount() <= 1 || manager.getMessageCount() == 0);
+        assertEquals(0, manager.getMessageCount());
+        assertTrue(manager.getTokenCount() <= 1);
         assertTrue(manager.getRemainingTokens() >= 0);
         assertEquals(manager.getTokenCount() >= 1, manager.isAtTokenLimit());
     }
