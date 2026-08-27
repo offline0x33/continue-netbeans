@@ -166,7 +166,7 @@ public class ChatPanel extends JPanel {
 
         JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
         right.setOpaque(false);
-        JButton sync = smallControl("↻ Cascade");
+        JButton sync = smallControl("↻ Sync");
         JButton mic = smallControl("◉");
         sendButton = roundButton("↑");
         sendButton.addActionListener(e -> sendPrompt());
@@ -195,7 +195,7 @@ public class ChatPanel extends JPanel {
         JLabel left = new JLabel("▰ Local   |   ▰ continue-netbeans");
         left.setForeground(SECONDARY);
         left.setFont(new Font("Inter", Font.PLAIN, 12));
-        JLabel right = new JLabel("Migrate off Cascade");
+        JLabel right = new JLabel("Ready");
         right.setForeground(SECONDARY);
         right.setFont(new Font("Inter", Font.PLAIN, 12));
         footer.add(left, BorderLayout.WEST);
@@ -227,7 +227,6 @@ public class ChatPanel extends JPanel {
                     updateStatus("Planning complete", BLUE);
                 });
             }
-
             @Override
             public void onTaskStarted(AgentTask task) {
                 SwingUtilities.invokeLater(() -> {
@@ -236,7 +235,6 @@ public class ChatPanel extends JPanel {
                     rebuildTaskPanel();
                 });
             }
-
             @Override
             public void onTaskVerifying(AgentTask task) {
                 SwingUtilities.invokeLater(() -> {
@@ -245,7 +243,6 @@ public class ChatPanel extends JPanel {
                     rebuildTaskPanel();
                 });
             }
-
             @Override
             public void onTaskCompleted(AgentTask task) {
                 SwingUtilities.invokeLater(() -> {
@@ -255,7 +252,6 @@ public class ChatPanel extends JPanel {
                     }
                 });
             }
-
             @Override
             public void onTaskFailed(AgentTask task) {
                 SwingUtilities.invokeLater(() -> {
@@ -264,7 +260,6 @@ public class ChatPanel extends JPanel {
                     updateStatus("Task failed", RED);
                 });
             }
-
             @Override
             public void onReplanning(TaskPlan failedPlan) {
                 SwingUtilities.invokeLater(() -> {
@@ -274,7 +269,6 @@ public class ChatPanel extends JPanel {
                     updateStatus("Replanning", ORANGE);
                 });
             }
-
             @Override
             public void onCompleted(TaskPlan plan) {
                 SwingUtilities.invokeLater(() -> {
@@ -286,7 +280,6 @@ public class ChatPanel extends JPanel {
                     resetInputState();
                 });
             }
-
             @Override
             public void onFailed(String message, TaskPlan plan) {
                 SwingUtilities.invokeLater(() -> {
@@ -506,11 +499,10 @@ public class ChatPanel extends JPanel {
             case RUNNING:
                 return "●";
             case VERIFYING:
-                return "◌";
-            case FAILED:
-                return "!";
+                return "◐";
             case BLOCKED:
-                return "×";
+            case FAILED:
+                return "✕";
             default:
                 return "○";
         }
@@ -520,20 +512,21 @@ public class ChatPanel extends JPanel {
         switch (status) {
             case DONE:
                 return GREEN;
-            case FAILED:
-            case BLOCKED:
-                return RED;
             case RUNNING:
             case VERIFYING:
                 return ORANGE;
+            case BLOCKED:
+            case FAILED:
+                return RED;
             default:
-                return new Color(0x52, 0x52, 0x5B);
+                return SECONDARY;
         }
     }
 
     private void updateStatus(String text, Color color) {
         statusLabel.setText(text);
         statusLabel.setForeground(color);
+        refreshConversation();
     }
 
     private void resetInputState() {
@@ -541,40 +534,26 @@ public class ChatPanel extends JPanel {
         sendButton.setEnabled(true);
         promptInput.setEnabled(true);
         modeSelector.setEnabled(true);
-        promptInput.requestFocus();
     }
 
     private void refreshConversation() {
         conversationPanel.revalidate();
         conversationPanel.repaint();
         SwingUtilities.invokeLater(() -> {
-            if (getParent() != null) {
-                getParent().revalidate();
+            if (conversationPanel.getParent() instanceof javax.swing.JViewport) {
+                JScrollPane scrollPane = (JScrollPane) conversationPanel.getParent().getParent();
+                scrollPane.getVerticalScrollBar().setValue(scrollPane.getVerticalScrollBar().getMaximum());
             }
         });
     }
 
-    private static String escape(String text) {
+    private String escape(String text) {
         if (text == null) {
             return "";
         }
-        return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
-    }
-
-    public void clearChat() {
-        conversationPanel.removeAll();
-        activePlan = null;
-        conversationPanel.add(createThoughtLine("Ready. Describe what you want changed."));
-        conversationPanel.add(Box.createVerticalStrut(8));
-        updateStatus("Ready", SECONDARY);
-        refreshConversation();
-    }
-
-    public LlmClient getLlmClient() {
-        return llmClient;
-    }
-
-    public boolean isProcessing() {
-        return isProcessing;
+        return text.replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;");
     }
 }
