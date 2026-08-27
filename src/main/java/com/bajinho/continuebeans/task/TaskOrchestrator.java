@@ -48,7 +48,7 @@ public final class TaskOrchestrator {
     }
 
     TaskOrchestrator(TaskPlanner planner, AIToolCallingIntegration executor, LlmClient intentClassifier) {
-        this(planner, executor, intentClassifier, new NetBeansProjectContext());
+        this(planner, executor, intentClassifier, null);
     }
 
     TaskOrchestrator(TaskPlanner planner, AIToolCallingIntegration executor,
@@ -77,10 +77,8 @@ public final class TaskOrchestrator {
                 refreshProjectContext();
                 AgentMode mode = ContinueSettings.getAgentMode();
 
-                // Chat-first: Docs/Planning and non-engineering intents never require a project
-                // and never enter the task/replan loop.
-                boolean useTasks = intentClassifier != null
-                        && intentClassifier.shouldUseTaskOrchestrator(goal, mode);
+                boolean useTasks = intentClassifier == null
+                        || intentClassifier.shouldUseTaskOrchestrator(goal, mode);
                 if (!useTasks) {
                     return executeConversation(goal, provider, listener, mode);
                 }
@@ -135,8 +133,7 @@ public final class TaskOrchestrator {
 
     private TaskPlan failWithoutExecution(String goal, Listener listener, String message) {
         AgentTask contextTask = new AgentTask(
-                "Contexto do projeto",
-                goal,
+                "Contexto do projeto", goal,
                 "Projeto NetBeans aberto e disponível para análise.",
                 Collections.<String>emptyList());
         contextTask.block(message);
@@ -197,38 +194,19 @@ public final class TaskOrchestrator {
 
     private TaskPlan executeConversation(String message, String provider, Listener listener, AgentMode mode) {
         AgentTask responseTask = new AgentTask(
-                "Assistant",
-                message,
+                "Assistant", message,
                 "A resposta conversacional foi gerada pelo modelo.",
                 Collections.<String>emptyList());
         TaskPlan plan = new TaskPlan(message, Collections.singletonList(responseTask));
-
-        // Soft lifecycle for chat — UI may choose not to render as a task board.
         listener.onPlanCreated(plan);
         listener.onTaskStarted(responseTask);
         conversationManager.addMessage("user", message);
 
         if (intentClassifier == null) {
-            // Fallback to tool-calling integration when no LlmClient is wired (unit tests).
-            AIToolCallingIntegration.AIResponse response = executor
-                    .processRequestWithToolCalling(conversationManager.getMessagesArray(), provider)
-                    .join();
-            if ("error".equalsIgnoreCase(response.getType())) {
-                String error = response.getContent() == null || response.getContent().isBlank()
-                        ? "Falha ao gerar resposta conversacional."
-                        : response.getContent();
-                responseTask.fail(error);
-                listener.onTaskFailed(responseTask);
-                listener.onFailed(error, plan);
-                return plan;
-            }
-            String content = response.getContent() == null || response.getContent().isBlank()
-                    ? "Não consegui gerar uma resposta neste momento."
-                    : response.getContent();
-            conversationManager.addMessage("assistant", content);
-            responseTask.complete(content);
-            listener.onTaskCompleted(responseTask);
-            listener.onCompleted(plan);
+            String error = "Cliente LLM não configurado para conversação.";
+            responseTask.fail(error);
+            listener.onTaskFailed(responseTask);
+            listener.onFailed(error, plan);
             return plan;
         }
 
@@ -236,10 +214,7 @@ public final class TaskOrchestrator {
         StringBuilder responseContent = new StringBuilder();
         CompletableFuture<Void> responseFuture = new CompletableFuture<>();
         intentClassifier.perguntarIAStreaming(
-                "",
-                message,
-                ContinueSettings.getModel(),
-                modeLabel,
+                "", message, ContinueSettings.getModel(), modeLabel,
                 chunk -> {
                     if (chunk != null && !chunk.isEmpty()) {
                         responseContent.append(chunk);
@@ -314,8 +289,7 @@ public final class TaskOrchestrator {
                         .processRequestWithToolCalling(buildVerificationPrompt(plan, task, executionResult), provider)
                         .join();
                 String verdict = verification == null || verification.getContent() == null
-                        ? ""
-                        : verification.getContent().trim();
+                        ? "" : verification.getContent().trim();
 
                 if (isDoneVerdict(verdict)) {
                     task.complete(executionResult);
@@ -392,7 +366,11 @@ public final class TaskOrchestrator {
     }
 
     private boolean isDoneVerdict(String verdict) {
-        return verdict.equalsIgnoreCase("DONE") || verdict.toUpperCase().startsWith("DONE:");
+        if (verdict == null) {
+            return false;
+        }
+        String normalized = verdict.trim().toUpperCase(Locale.ROOT);
+        return normalized.equals("DONE") || normalized.startsWith("DONE ") || normalized.startsWith("DONE:");
     }
 
     private String truncate(String value, int limit) {
