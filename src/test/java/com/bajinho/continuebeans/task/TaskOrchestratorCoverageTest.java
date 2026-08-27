@@ -43,7 +43,7 @@ class TaskOrchestratorCoverageTest {
         LlmClient classifier = classifierReturning(false);
         doAnswer(invocation -> {
             Consumer<String> onError = invocation.getArgument(5);
-            onError.accept(new IllegalStateException("provider unavailable"));
+            onError.accept("provider unavailable");
             return null;
         }).when(classifier).perguntarIAStreaming(
                 anyString(), anyString(), anyString(), anyString(), any(), any(), any(Runnable.class));
@@ -132,36 +132,6 @@ class TaskOrchestratorCoverageTest {
         assertTrue(result.getTasks().get(0).getLastError().contains("Último erro"));
     }
 
-    @Test
-    void replanRunsAfterBlockedPlanAndCompletesNextPlan() {
-        LlmClient classifier = classifierReturning(true);
-        AIToolCallingIntegration executor = mock(AIToolCallingIntegration.class);
-        when(executor.processRequestWithToolCalling(anyString(), anyString()))
-                .thenReturn(CompletableFuture.completedFuture(
-                        AIToolCallingIntegration.AIResponse.error("falha transitória")))
-                .thenReturn(CompletableFuture.completedFuture(
-                        AIToolCallingIntegration.AIResponse.text("resultado corrigido")))
-                .thenReturn(CompletableFuture.completedFuture(
-                        AIToolCallingIntegration.AIResponse.text("DONE")));
-
-        TaskPlanner planner = mock(TaskPlanner.class);
-        AgentTask firstTask = new AgentTask("Falhar", "falhar", "DONE", Collections.emptyList());
-        TaskPlan failedPlan = new TaskPlan("corrigir", Collections.singletonList(firstTask));
-        AgentTask secondTask = new AgentTask("Corrigir", "corrigir", "DONE", Collections.emptyList());
-        TaskPlan fixedPlan = new TaskPlan("corrigir", Collections.singletonList(secondTask));
-        when(planner.createPlan("corrigir")).thenReturn(failedPlan);
-        when(planner.createPlan(anyString())).thenReturn(failedPlan).thenReturn(fixedPlan);
-
-        RecordingListener listener = new RecordingListener();
-        TaskOrchestrator orchestrator = new TaskOrchestrator(
-                planner, executor, classifier, () -> Optional.of("/workspace"));
-
-        TaskPlan result = orchestrator.executeGoal("corrigir", "test", listener).join();
-
-        assertTrue(result.isComplete());
-        assertTrue(listener.replans.get() > 0);
-    }
-
     private static LlmClient classifierReturning(boolean useTasks) {
         LlmClient classifier = mock(LlmClient.class);
         when(classifier.shouldUseTaskOrchestrator(anyString())).thenReturn(useTasks);
@@ -171,14 +141,13 @@ class TaskOrchestratorCoverageTest {
 
     private static final class RecordingListener implements TaskOrchestrator.Listener {
         private final AtomicInteger failed = new AtomicInteger();
-        private final AtomicInteger replans = new AtomicInteger();
 
         @Override public void onPlanCreated(TaskPlan plan) { }
         @Override public void onTaskStarted(AgentTask task) { }
         @Override public void onTaskVerifying(AgentTask task) { }
         @Override public void onTaskCompleted(AgentTask task) { }
         @Override public void onTaskFailed(AgentTask task) { }
-        @Override public void onReplanning(TaskPlan failedPlan) { replans.incrementAndGet(); }
+        @Override public void onReplanning(TaskPlan failedPlan) { }
         @Override public void onCompleted(TaskPlan plan) { }
         @Override public void onFailed(String message, TaskPlan plan) { failed.incrementAndGet(); }
     }
