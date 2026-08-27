@@ -77,14 +77,10 @@ public final class TaskOrchestrator {
                 refreshProjectContext();
                 AgentMode mode = ContinueSettings.getAgentMode();
 
-                // Project-dependent requests are rejected before invoking any classifier/model when
-                // there is no open project. This keeps failure deterministic and avoids network calls.
                 if (requiresProjectContext(goal) && currentProjectRoot().isEmpty()) {
                     return failWithoutExecution(goal, listener, NO_PROJECT_MESSAGE);
                 }
 
-                // The two-argument constructor is the explicit task-execution path; a classifier,
-                // when present, may still route conversational requests away from planning.
                 boolean useTasks = intentClassifier == null
                         || intentClassifier.shouldUseTaskOrchestrator(goal, mode);
                 if (!useTasks) {
@@ -112,6 +108,12 @@ public final class TaskOrchestrator {
                         return plan;
                     }
 
+                    if (hasRetryExhaustion(plan)) {
+                        listener.onFailed("Não foi possível concluir a tarefa após " + MAX_TASK_ATTEMPTS
+                                + " tentativas. Último erro: " + lastTaskError(plan), plan);
+                        return plan;
+                    }
+
                     if (replans == MAX_REPLANS) {
                         listener.onFailed("Limite de replanejamentos atingido. "
                                 + "Tente reformular o pedido ou abra um projeto no NetBeans.", plan);
@@ -129,6 +131,24 @@ public final class TaskOrchestrator {
                 throw new RuntimeException(message, e);
             }
         });
+    }
+
+    private boolean hasRetryExhaustion(TaskPlan plan) {
+        for (AgentTask task : plan.getTasks()) {
+            if (task.getStatus() == TaskStatus.BLOCKED && task.getAttempts() >= MAX_TASK_ATTEMPTS) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String lastTaskError(TaskPlan plan) {
+        for (AgentTask task : plan.getTasks()) {
+            if (task.getStatus() == TaskStatus.BLOCKED && task.getLastError() != null) {
+                return task.getLastError();
+            }
+        }
+        return "erro desconhecido";
     }
 
     private Optional<String> currentProjectRoot() {
@@ -149,88 +169,12 @@ public final class TaskOrchestrator {
         return plan;
     }
 
-    private boolean requiresProjectContext(String goal) {
-        if (goal == null) {
-            return false;
-        }
-        String normalized = goal.toLowerCase(Locale.ROOT);
-        return normalized.contains("projeto aberto")
-                || normalized.contains("analisar o projeto")
-                || normalized.contains("analise o projeto")
-                || normalized.contains("analisar projeto")
-                || normalized.contains("analise projeto")
-                || normalized.contains("analyze the project")
-                || normalized.contains("analyze project")
-                || normalized.contains("código do projeto")
-                || normalized.contains("codigo do projeto")
-                || normalized.contains("desse projeto")
-                || normalized.contains("deste projeto")
-                || normalized.contains("sobre o projeto")
-                || normalized.contains("do projeto")
-                || normalized.contains("no projeto")
-                || normalized.contains("projeto atual")
-                || normalized.contains("este projeto")
-                || normalized.contains("workspace")
-                || normalized.contains("pom.xml")
-                || normalized.contains("build.gradle")
-                || normalized.contains("@codebase")
-                || normalized.contains("@file:");
-    }
-
-    private boolean isMissingProjectFailure(TaskPlan plan) {
-        if (plan == null) {
-            return false;
-        }
-        for (AgentTask task : plan.getTasks()) {
-            String error = task.getLastError();
-            if (error == null) {
-                continue;
-            }
-            String lower = error.toLowerCase(Locale.ROOT);
-            if (lower.contains("nenhum projeto")
-                    || lower.contains("no project")
-                    || lower.contains("workspace root")
-                    || lower.contains("projeto aberto")) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     private TaskPlan executeConversation(String message, String provider, Listener listener, AgentMode mode) {
-        AgentTask responseTask = new AgentTask(
-                "Assistant",
-                message,
-                "A resposta conversacional foi gerada pelo modelo.",
-                Collections.<String>emptyList());
+        AgentTask responseTask = new AgentTask("Responder ao usuário", message,
+                "Uma resposta útil foi entregue ao usuário.", Collections.emptyList());
         TaskPlan plan = new TaskPlan(message, Collections.singletonList(responseTask));
-
-        listener.onPlanCreated(plan);
+        responseTask.start();
         listener.onTaskStarted(responseTask);
-        conversationManager.addMessage("user", message);
-
-        if (intentClassifier == null) {
-            AIToolCallingIntegration.AIResponse response = executor
-                    .processRequestWithToolCalling(conversationManager.getMessagesArray(), provider)
-                    .join();
-            if ("error".equalsIgnoreCase(response.getType())) {
-                String error = response.getContent() == null || response.getContent().isBlank()
-                        ? "Falha ao gerar resposta conversacional."
-                        : response.getContent();
-                responseTask.fail(error);
-                listener.onTaskFailed(responseTask);
-                listener.onFailed(error, plan);
-                return plan;
-            }
-            String content = response.getContent() == null || response.getContent().isBlank()
-                    ? "Não consegui gerar uma resposta neste momento."
-                    : response.getContent();
-            conversationManager.addMessage("assistant", content);
-            responseTask.complete(content);
-            listener.onTaskCompleted(responseTask);
-            listener.onCompleted(plan);
-            return plan;
-        }
 
         String modeLabel = mode == null ? ContinueSettings.getAgentMode().getLabel() : mode.getLabel();
         StringBuilder responseContent = new StringBuilder();
@@ -388,17 +332,40 @@ public final class TaskOrchestrator {
                 + "OBJETIVO:\n" + plan.getGoal() + "\n\n"
                 + "TAREFA:\n" + task.getTitle() + "\n\n"
                 + "CRITÉRIO:\n" + task.getCompletionCriteria() + "\n\n"
-                + "RESULTADO INFORMADO PELO AGENTE:\n" + executionResult;
+                + "RESULTADO DA EXECUÇÃO:\n" + executionResult + "\n";
     }
 
     private boolean isDoneVerdict(String verdict) {
-        return verdict.equalsIgnoreCase("DONE") || verdict.toUpperCase().startsWith("DONE:");
+        if (verdict == null) {
+            return false;
+        }
+        String normalized = verdict.trim().toUpperCase(Locale.ROOT);
+        return normalized.equals("DONE") || normalized.startsWith("DONE ") || normalized.startsWith("DONE:");
     }
 
-    private String truncate(String value, int limit) {
-        if (value == null || value.length() <= limit) {
+    private boolean isMissingProjectFailure(TaskPlan plan) {
+        for (AgentTask task : plan.getTasks()) {
+            if (task.getLastError() != null && isHardFailure(task.getLastError())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean requiresProjectContext(String goal) {
+        if (goal == null || goal.isBlank()) {
+            return false;
+        }
+        return goal.matches("(?is).*\\b(arquivo|arquivos|código|codigo|classe|classes|projeto|workspace|" 
+                + "project|workspace|commit|git|build|compile|teste|test|implemente|implementar|" 
+                + "corrija|corrigir|refatore|refatorar|crie|criar|edite|editar|alterar|alterar|" 
+                + "analise|analisar|leia|ler|liste|listar|execute|executar|rode|rodar)\\b.*");
+    }
+
+    private String truncate(String value, int maxLength) {
+        if (value == null || value.length() <= maxLength) {
             return value;
         }
-        return value.substring(0, limit) + "...";
+        return value.substring(0, maxLength) + "…";
     }
 }
