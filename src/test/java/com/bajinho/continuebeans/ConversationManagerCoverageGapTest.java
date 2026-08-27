@@ -55,8 +55,9 @@ class ConversationManagerCoverageGapTest {
         ConversationManager manager = new ConversationManager(100);
         manager.addMessage("user", "one two three four five");
         manager.setMaxTokens(1);
-        assertTrue(manager.getTokenCount() <= 1 || manager.getMessageCount() == 0);
-        assertTrue(manager.getRemainingTokens() >= 0);
-        assertEquals(manager.getTokenCount() >= 1, manager.isAtTokenLimit());
+        assertEquals(0, manager.getMessageCount());
+        assertEquals(0, manager.getTokenCount());
+        assertEquals(1, manager.getRemainingTokens());
+        assertTrue(!manager.isAtTokenLimit());
     }
 }
