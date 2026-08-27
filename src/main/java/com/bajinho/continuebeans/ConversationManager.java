@@ -24,30 +24,19 @@ public class ConversationManager {
         this(DEFAULT_MAX_TOKENS);
     }
 
-    /**
-     * Add a message to conversation history.
-     * Automatically truncates old messages if context window is exceeded.
-     */
     public synchronized void addMessage(String role, String content) {
         JsonObject message = new JsonObject();
         message.addProperty("role", role);
         message.addProperty("content", content);
-
         messages.add(message);
         truncateIfNeeded();
     }
 
-    /**
-     * Add a message object directly.
-     */
     public synchronized void addMessage(JsonObject message) {
-        messages.add(message);
+        messages.add(message.deepCopy());
         truncateIfNeeded();
     }
 
-    /**
-     * Get all messages as JsonArray.
-     */
     public synchronized JsonArray getMessagesArray() {
         JsonArray array = new JsonArray();
         for (JsonObject msg : messages) {
@@ -56,9 +45,6 @@ public class ConversationManager {
         return array;
     }
 
-    /**
-     * Get messages formatted as string for display.
-     */
     public synchronized String getConversationHistory() {
         StringBuilder sb = new StringBuilder();
         for (JsonObject msg : messages) {
@@ -69,9 +55,6 @@ public class ConversationManager {
         return sb.toString();
     }
 
-    /**
-     * Get current token count of all messages.
-     */
     public synchronized int getTokenCount() {
         int count = 0;
         for (JsonObject msg : messages) {
@@ -81,47 +64,32 @@ public class ConversationManager {
         return count;
     }
 
-    /**
-     * Truncate oldest messages if conversation exceeds token limit.
-     * Keeps system message (if present) as it's important for context.
-     */
+    /** Truncate oldest non-system messages, including an oversized single message. */
     private void truncateIfNeeded() {
-        while (getTokenCount() > maxTokens && messages.size() > 1) {
+        while (getTokenCount() > maxTokens && !messages.isEmpty()) {
+            int removable = -1;
             for (int i = 0; i < messages.size(); i++) {
                 String role = messages.get(i).get("role").getAsString();
                 if (!"system".equalsIgnoreCase(role)) {
-                    messages.remove(i);
+                    removable = i;
                     break;
                 }
             }
-
-            if (getTokenCount() > maxTokens && messages.size() == 1) {
-                String role = messages.get(0).get("role").getAsString();
-                if (!"system".equalsIgnoreCase(role)) {
-                    messages.remove(0);
-                }
+            if (removable < 0) {
+                break;
             }
+            messages.remove(removable);
         }
     }
 
-    /**
-     * Clear all messages.
-     */
     public synchronized void clear() {
         messages.clear();
     }
 
-    /**
-     * Get number of messages.
-     */
     public synchronized int getMessageCount() {
         return messages.size();
     }
 
-    /**
-     * Get last N messages (useful for context preview).
-     * Returned messages are copies so callers cannot mutate internal state.
-     */
     public synchronized List<JsonObject> getLastMessages(int count) {
         int startIndex = Math.max(0, messages.size() - count);
         List<JsonObject> result = new ArrayList<>();
@@ -131,10 +99,6 @@ public class ConversationManager {
         return result;
     }
 
-    /**
-     * Estimate token count from text.
-     * Using rough estimate: 1 token ≈ 4 characters.
-     */
     private int estimateTokens(String text) {
         if (text == null) {
             return 0;
@@ -143,31 +107,22 @@ public class ConversationManager {
         return Math.max(1, (int) Math.ceil(wordCount * 1.3));
     }
 
-    /**
-     * Set custom max tokens.
-     */
     public synchronized void setMaxTokens(int maxTokens) {
+        if (maxTokens < 0) {
+            throw new IllegalArgumentException("maxTokens não pode ser negativo.");
+        }
         this.maxTokens = maxTokens;
         truncateIfNeeded();
     }
 
-    /**
-     * Check if conversation is at token limit.
-     */
     public synchronized boolean isAtTokenLimit() {
         return getTokenCount() >= maxTokens;
     }
 
-    /**
-     * Get remaining token capacity.
-     */
     public synchronized int getRemainingTokens() {
         return Math.max(0, maxTokens - getTokenCount());
     }
 
-    /**
-     * Get summary of conversation (for logging).
-     */
     @Override
     public synchronized String toString() {
         return String.format("ConversationManager{messages=%d, tokens=%d/%d, remaining=%d}",
