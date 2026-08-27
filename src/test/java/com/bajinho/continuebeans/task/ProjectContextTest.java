@@ -11,13 +11,16 @@ import com.bajinho.continuebeans.LlmClient;
 import com.bajinho.continuebeans.ai.AIToolCallingIntegration;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 
+@Timeout(value = 5, unit = TimeUnit.SECONDS)
 class ProjectContextTest {
 
     @Test
-    void projectRequiredWithoutOpenProjectFailsWithoutRetries() {
+    void projectRequiredWithoutOpenProjectFailsWithoutRetries() throws Exception {
         ProjectContext context = mock(ProjectContext.class);
         when(context.currentProjectRoot()).thenReturn(Optional.empty());
         RecordingAgent agent = new RecordingAgent();
@@ -25,7 +28,8 @@ class ProjectContextTest {
                 new TaskPlanner(), agent, null, context);
         RecordingListener listener = new RecordingListener();
 
-        TaskPlan plan = orchestrator.executeGoal("analise o projeto aberto no NetBeans", "test", listener).join();
+        TaskPlan plan = orchestrator.executeGoal("analise o projeto aberto no NetBeans", "test", listener)
+                .get(2, TimeUnit.SECONDS);
 
         assertEquals(TaskStatus.BLOCKED, plan.getTasks().get(0).getStatus());
         assertEquals(0, agent.calls.get());
@@ -34,7 +38,7 @@ class ProjectContextTest {
     }
 
     @Test
-    void projectRequirementIsValidatedBeforeIntentRouting() {
+    void projectRequirementIsValidatedBeforeIntentRouting() throws Exception {
         ProjectContext context = mock(ProjectContext.class);
         when(context.currentProjectRoot()).thenReturn(Optional.empty());
         LlmClient classifier = mock(LlmClient.class);
@@ -44,7 +48,8 @@ class ProjectContextTest {
                 new TaskPlanner(), agent, classifier, context);
         RecordingListener listener = new RecordingListener();
 
-        TaskPlan plan = orchestrator.executeGoal("analise o projeto atual", "test", listener).join();
+        TaskPlan plan = orchestrator.executeGoal("analise o projeto atual", "test", listener)
+                .get(2, TimeUnit.SECONDS);
 
         assertEquals(TaskStatus.BLOCKED, plan.getTasks().get(0).getStatus());
         assertEquals(0, agent.calls.get());
