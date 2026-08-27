@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.bajinho.continuebeans.AgentMode;
@@ -130,6 +131,8 @@ class TaskOrchestratorCoverageTest {
         assertEquals(TaskStatus.BLOCKED, result.getTasks().get(0).getStatus());
         assertEquals(3, result.getTasks().get(0).getAttempts());
         assertTrue(result.getTasks().get(0).getLastError().contains("temporary execution failure"));
+        assertEquals(1, listener.failed.get());
+        verify(planner).createPlan("corrigir");
     }
 
     private static LlmClient classifierReturning(boolean useTasks) {
