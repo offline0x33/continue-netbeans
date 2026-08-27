@@ -180,8 +180,8 @@ jobs:
             ### Changelog
             See [CHANGELOG.md](docs/CHANGELOG.md) for detailed changes.
           files: |
-            target/*.nbm
-            target/*.jar
+            target/continue-beans-${{ steps.version.outputs.version }}.nbm
+            target/continue-beans-${{ steps.version.outputs.version }}.jar
           draft: false
           prerelease: false
         env:
