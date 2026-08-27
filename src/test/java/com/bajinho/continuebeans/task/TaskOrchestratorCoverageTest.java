@@ -42,8 +42,8 @@ class TaskOrchestratorCoverageTest {
     void conversationFailureIsReportedToListener() {
         LlmClient classifier = classifierReturning(false);
         doAnswer(invocation -> {
-            Consumer<String> onError = invocation.getArgument(5);
-            onError.accept("provider unavailable");
+            Consumer<Throwable> onError = invocation.getArgument(5);
+            onError.accept(new IllegalStateException("provider unavailable"));
             return null;
         }).when(classifier).perguntarIAStreaming(
                 anyString(), anyString(), anyString(), anyString(), any(), any(), any(Runnable.class));
@@ -114,7 +114,7 @@ class TaskOrchestratorCoverageTest {
         AIToolCallingIntegration executor = mock(AIToolCallingIntegration.class);
         when(executor.processRequestWithToolCalling(anyString(), anyString()))
                 .thenReturn(CompletableFuture.completedFuture(
-                        AIToolCallingIntegration.AIResponse.text("resultado")));
+                        AIToolCallingIntegration.AIResponse.error("temporary execution failure")));
         RecordingListener listener = new RecordingListener();
 
         TaskPlanner planner = mock(TaskPlanner.class);
@@ -129,7 +129,7 @@ class TaskOrchestratorCoverageTest {
 
         assertEquals(TaskStatus.BLOCKED, result.getTasks().get(0).getStatus());
         assertEquals(3, result.getTasks().get(0).getAttempts());
-        assertTrue(result.getTasks().get(0).getLastError().contains("Último erro"));
+        assertTrue(result.getTasks().get(0).getLastError().contains("temporary execution failure"));
     }
 
     private static LlmClient classifierReturning(boolean useTasks) {
