@@ -1,0 +1,35 @@
+name: Repair list directory count
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: github.sha != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch implementation and remove temporary workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('src/main/java/com/bajinho/continuebeans/ai/NetBeansFunctionExecutor.java')
+          s = p.read_text()
+          old = '"count", files.size(),'
+          new = '"count", files.stream().filter(file -> "file".equals(file.get("type"))).count(),'
+          if old not in s:
+              raise SystemExit('Expected list_directory count expression not found')
+          p.write_text(s.replace(old, new, 1))
+          PY
+          rm .github/workflows/repair-list-directory.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/main/java/com/bajinho/continuebeans/ai/NetBeansFunctionExecutor.java .github/workflows/repair-list-directory.yml
+          git commit -m 'fix: count files in recursive directory listing'
+          git push
