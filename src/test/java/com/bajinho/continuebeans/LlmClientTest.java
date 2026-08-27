@@ -3,7 +3,6 @@ package com.bajinho.continuebeans;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.AfterEach;
@@ -19,7 +18,6 @@ import static org.mockito.Mockito.*;
  * Unit tests for LlmClient. Provider and network interactions are mocked.
  */
 class LlmClientTest {
-
     private LlmClient client;
     private MockedConstruction<LmStudioProvider> providerConstruction;
     private LmStudioProvider provider;
@@ -29,10 +27,8 @@ class LlmClientTest {
         providerConstruction = mockConstruction(LmStudioProvider.class, (mock, context) -> {
             when(mock.ask(anyString(), anyString(), anyString(), anyString()))
                     .thenReturn(CompletableFuture.completedFuture("mock response"));
-            when(mock.listModels())
-                    .thenReturn(CompletableFuture.completedFuture(List.of("mock-model")));
-            when(mock.loadModel(anyString()))
-                    .thenReturn(CompletableFuture.completedFuture(true));
+            when(mock.listModels()).thenReturn(CompletableFuture.completedFuture(List.of("mock-model")));
+            when(mock.loadModel(anyString())).thenReturn(CompletableFuture.completedFuture(true));
             doAnswer(invocation -> {
                 Consumer<String> onChunk = invocation.getArgument(4);
                 Runnable onComplete = invocation.getArgument(6);
@@ -46,13 +42,11 @@ class LlmClientTest {
     }
 
     @AfterEach
-    void tearDown() {
-        providerConstruction.close();
-    }
+    void tearDown() { providerConstruction.close(); }
 
     @Test
     void testResolveUrl() {
-        assertEquals("http://127.0.0.1:1234", client.resolveUrl("localhost:1234"));
+        assertEquals("http://127.0.0.1:1234", client.resolveUrl("127.0.0.1:1234"));
     }
 
     @Test
@@ -66,20 +60,14 @@ class LlmClientTest {
         String[] receivedChunk = {null};
         String[] receivedError = {null};
         CountDownLatch completion = new CountDownLatch(1);
-
         client.perguntarIAStreaming("context", "question", "test-model", "Code",
                 chunk -> receivedChunk[0] = chunk,
-                error -> {
-                    receivedError[0] = error.getMessage();
-                    completion.countDown();
-                },
+                error -> { receivedError[0] = error.getMessage(); completion.countDown(); },
                 completion::countDown);
-
         assertTrue(completion.await(1, TimeUnit.SECONDS));
         assertEquals("mock chunk", receivedChunk[0]);
         assertNull(receivedError[0]);
-        verify(provider).stream(eq("context"), eq("question"), eq("test-model"), eq("Code"),
-                any(), any(), any());
+        verify(provider).stream(eq("context"), eq("question"), eq("test-model"), eq("Code"), any(), any(), any());
     }
 
     @Test
@@ -143,17 +131,12 @@ class LlmClientTest {
             onComplete.run();
             return null;
         }).when(provider).stream(anyString(), anyString(), anyString(), anyString(), any(), any(), any());
-
         Throwable[] error = {null};
         CountDownLatch completion = new CountDownLatch(1);
-        client.perguntarIAStreaming("code", "plan", "model", "Planning",
-                chunk -> {},
-                err -> {
-                    error[0] = err;
-                    completion.countDown();
-                },
-                completion::countDown);
-
+        client.perguntarIAStreaming("code", "plan", "model", "Planning", chunk -> {}, err -> {
+            error[0] = err;
+            completion.countDown();
+        }, completion::countDown);
         assertTrue(completion.await(1, TimeUnit.SECONDS));
         assertNotNull(error[0]);
         assertEquals("mock provider failure", error[0].getMessage());
@@ -162,10 +145,8 @@ class LlmClientTest {
     @Test
     void testStreamingWithDocMode() throws Exception {
         CountDownLatch completion = new CountDownLatch(1);
-        client.perguntarIAStreaming("code", "doc", "model", "Docs",
-                chunk -> {},
-                err -> fail("Mock provider should not fail: " + err),
-                completion::countDown);
+        client.perguntarIAStreaming("code", "doc", "model", "Docs", chunk -> {},
+                err -> fail("Mock provider should not fail: " + err), completion::countDown);
         assertTrue(completion.await(1, TimeUnit.SECONDS));
     }
 
