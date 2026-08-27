@@ -39,7 +39,7 @@ class MultiProviderRouterTest {
         assertEquals("b", balancer.selectLeastConnections(providers));
         balancer.decrementConnections("a");
         balancer.decrementConnections("missing");
-        assertEquals(0, balancer.selectLeastConnections(List.of(provider("a", false, 1)) == null ? providers : providers).length());
+        assertEquals("a", balancer.selectLeastConnections(List.of(provider("a", true, 1))));
     }
 
     @Test
