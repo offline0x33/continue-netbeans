@@ -1,17 +1,39 @@
 package com.bajinho.continuebeans;
 
+import com.bajinho.continuebeans.ai.LMStudioTextIntegration;
 import com.bajinho.continuebeans.ui.ChatPanel;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedConstruction;
 
 import javax.swing.JButton;
 import javax.swing.JLabel;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Container;
+import java.util.concurrent.CompletableFuture;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
 
 class ChatPanelDarkThemeTest {
+
+    private MockedConstruction<LMStudioTextIntegration> lmStudioConstruction;
+
+    @BeforeEach
+    void setUp() {
+        lmStudioConstruction = mockConstruction(LMStudioTextIntegration.class,
+                (mock, context) -> when(mock.testConnection()).thenReturn(CompletableFuture.completedFuture(false)));
+    }
+
+    @AfterEach
+    void tearDown() {
+        if (lmStudioConstruction != null) {
+            lmStudioConstruction.close();
+        }
+    }
+
     @Test
     void darkThemeUsesCanonicalTokens() {
         ChatPanel panel = new ChatPanel();
