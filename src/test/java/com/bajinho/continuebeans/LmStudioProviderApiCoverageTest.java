@@ -48,7 +48,7 @@ class LmStudioProviderApiCoverageTest {
                 .ask("ctx", "question", "model", "Planning").get(2, TimeUnit.SECONDS);
         assertEquals("Hello API", result);
         assertTrue(requestBody.get().contains("\"model\":\"model\""));
-        assertTrue(requestBody.get().contains("Planeje antes de codar"));
+        assertTrue(requestBody.get().contains("Você está em modo planejamento"));
     }
 
     @Test

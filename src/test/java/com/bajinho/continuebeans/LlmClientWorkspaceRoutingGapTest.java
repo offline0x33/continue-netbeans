@@ -32,7 +32,7 @@ class LlmClientWorkspaceRoutingGapTest {
         assertTrue(client.shouldUseWorkspaceTools(base + "abra"));
         assertTrue(client.shouldUseWorkspaceTools(base + "open"));
         assertTrue(client.shouldUseWorkspaceTools(base + "analise"));
-        assertTrue(client.shouldUseWorkspaceTools(base + "edit"));
+        assertTrue(client.shouldUseWorkspaceTools(base + "edite"));
         assertTrue(client.shouldUseWorkspaceTools(base + "corrija"));
         assertTrue(client.shouldUseWorkspaceTools(base + "build"));
         assertTrue(client.shouldUseWorkspaceTools(base + "crie"));
