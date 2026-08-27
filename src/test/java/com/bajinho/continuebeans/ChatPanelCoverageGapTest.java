@@ -38,9 +38,12 @@ class ChatPanelCoverageGapTest {
 
     @Test
     void acceptsValidConfiguredApiUrl() throws Exception {
-        withPanel("http://127.0.0.1:1234/v1/chat/completions", "test-model",
-                (panel, client, orchestrator) ->
-                        assertTrue((Boolean) invoke(panel, "hasConfiguredApiUrl")));
+        // Keep construction side-effect free; the constructor refreshes models when a URL is configured.
+        // The method under test reads the persisted setting, so configure the URL only after construction.
+        withPanel("", "test-model", (panel, client, orchestrator) -> {
+            ContinueSettings.setApiUrl("http://127.0.0.1:1234/v1/chat/completions");
+            assertTrue((Boolean) invoke(panel, "hasConfiguredApiUrl"));
+        });
     }
 
     @Test
