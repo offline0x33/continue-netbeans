@@ -19,8 +19,20 @@ jobs:
           from pathlib import Path
           path = Path('src/main/java/com/bajinho/continuebeans/ai/NetBeansFunctionExecutor.java')
           text = path.read_text(encoding='utf-8')
-          needle = '''    private FunctionResult executeGetModuleInfo(Map<String, Object> args) {\n        String moduleCodeName = (String) args.get("moduleCodeName");\n        \n        try {'''
-          replacement = '''    private FunctionResult executeGetModuleInfo(Map<String, Object> args) {\n        String moduleCodeName = (String) args.get("moduleCodeName");\n        \n        // ModuleInfo lookup requires the NetBeans Platform runtime. Unit tests and\n        // plain Maven executions must not initialize the platform module system.\n        if (System.getProperty("netbeans.home") == null) {\n            return FunctionResult.error("Module not found: " + moduleCodeName);\n        }\n        \n        try {'''
+          needle = '''    private FunctionResult executeGetModuleInfo(Map<String, Object> args) {
+        String moduleCodeName = (String) args.get("moduleCodeName");
+
+        try {'''
+          replacement = '''    private FunctionResult executeGetModuleInfo(Map<String, Object> args) {
+        String moduleCodeName = (String) args.get("moduleCodeName");
+
+        // ModuleInfo lookup requires the NetBeans Platform runtime. Unit tests and
+        // plain Maven executions must not initialize the platform module system.
+        if (System.getProperty("netbeans.home") == null) {
+            return FunctionResult.error("Module not found: " + moduleCodeName);
+        }
+
+        try {'''
           if needle not in text:
               raise SystemExit('target method pattern not found')
           if 'netbeans.home' in text.split('private FunctionResult executeGetModuleInfo', 1)[1].split('private FunctionResult executeGetModuleServices', 1)[0]:
