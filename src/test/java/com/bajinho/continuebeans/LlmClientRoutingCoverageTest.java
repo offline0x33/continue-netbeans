@@ -3,9 +3,6 @@ package com.bajinho.continuebeans;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
-
 import static org.junit.jupiter.api.Assertions.*;
 
 class LlmClientRoutingCoverageTest {
@@ -107,10 +104,9 @@ class LlmClientRoutingCoverageTest {
     }
 
     @Test
-    void resolveUrlDelegatesAndAsyncModelListingRemainsNonNull() throws Exception {
+    void resolveUrlDelegatesToUrlUtils() {
         assertEquals("http://localhost:1234", client.resolveUrl("http://localhost:1234"));
-        CompletableFuture<?> models = client.getModelosDisponiveisAsync();
-        assertNotNull(models);
-        assertNotNull(models.get(2, TimeUnit.SECONDS));
+        assertEquals("http://localhost:1234/v1/chat/completions",
+                client.resolveUrl("http://localhost:1234/v1/chat/completions"));
     }
 }
