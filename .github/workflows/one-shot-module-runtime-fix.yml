@@ -1,7 +1,7 @@
 name: One-shot module runtime fix
 on:
-  push:
-    branches: [ fix/netbeans-module-runtime-guard-2026-08-27 ]
+  pull_request:
+    branches: [ main ]
 permissions:
   contents: write
 jobs:
