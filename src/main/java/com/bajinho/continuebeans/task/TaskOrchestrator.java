@@ -77,10 +77,10 @@ public final class TaskOrchestrator {
                 refreshProjectContext();
                 AgentMode mode = ContinueSettings.getAgentMode();
 
-                // Chat-first: Docs/Planning and non-engineering intents never require a project
-                // and never enter the task/replan loop.
-                boolean useTasks = intentClassifier != null
-                        && intentClassifier.shouldUseTaskOrchestrator(goal, mode);
+                // Without a classifier, the two-argument constructor is explicitly the task-execution path.
+                // With a classifier, honor its intent decision and keep conversational requests out of planning.
+                boolean useTasks = intentClassifier == null
+                        || intentClassifier.shouldUseTaskOrchestrator(goal, mode);
                 if (!useTasks) {
                     return executeConversation(goal, provider, listener, mode);
                 }
@@ -203,13 +203,11 @@ public final class TaskOrchestrator {
                 Collections.<String>emptyList());
         TaskPlan plan = new TaskPlan(message, Collections.singletonList(responseTask));
 
-        // Soft lifecycle for chat — UI may choose not to render as a task board.
         listener.onPlanCreated(plan);
         listener.onTaskStarted(responseTask);
         conversationManager.addMessage("user", message);
 
         if (intentClassifier == null) {
-            // Fallback to tool-calling integration when no LlmClient is wired (unit tests).
             AIToolCallingIntegration.AIResponse response = executor
                     .processRequestWithToolCalling(conversationManager.getMessagesArray(), provider)
                     .join();
@@ -322,83 +320,38 @@ public final class TaskOrchestrator {
                     listener.onTaskCompleted(task);
                     completed = true;
                 } else {
-                    String failMsg = verdict.isBlank()
-                            ? "Verificação falhou: o verificador não retornou DONE."
-                            : "Verificação falhou: " + truncate(verdict, 500);
-                    task.fail(failMsg);
+                    task.fail("Verificação não confirmou conclusão: " + (verdict.isBlank() ? "resposta vazia" : verdict));
                     listener.onTaskFailed(task);
                 }
             }
 
             if (!completed) {
-                String blockReason = task.getLastError() == null || task.getLastError().isBlank()
-                        ? "Não foi possível concluir a tarefa após " + MAX_TASK_ATTEMPTS + " tentativas."
-                        : "Não foi possível concluir a tarefa após " + MAX_TASK_ATTEMPTS
-                                + " tentativas. Último erro: " + task.getLastError();
-                task.block(blockReason);
+                task.block("Último erro após " + task.getAttempts() + " tentativa(s).");
                 return;
             }
         }
     }
 
-    private boolean isHardFailure(String error) {
-        if (error == null) {
-            return false;
-        }
-        String lower = error.toLowerCase(Locale.ROOT);
-        return lower.contains("nenhum projeto")
-                || lower.contains("no project")
-                || lower.contains("url da api")
-                || lower.contains("modelo ai não configurado")
-                || lower.contains("não configurado");
-    }
-
-    private String buildReplanGoal(String originalGoal, TaskPlan failedPlan) {
-        StringBuilder context = new StringBuilder();
-        context.append(originalGoal).append("\n\n")
-                .append("CONTEXTO OBRIGATÓRIO DE REPLANEJAMENTO:\n")
-                .append("O plano anterior não foi concluído. Não repita cegamente as mesmas tarefas. "
-                        + "Analise as falhas abaixo e crie uma estratégia corrigida.\n");
-        for (AgentTask task : failedPlan.getTasks()) {
-            if (task.getStatus() == TaskStatus.FAILED || task.getStatus() == TaskStatus.BLOCKED) {
-                context.append("- Tarefa: ").append(task.getTitle())
-                        .append("; tentativas: ").append(task.getAttempts())
-                        .append("; erro: ").append(task.getLastError()).append('\n');
-            }
-        }
-        context.append("Inclua explicitamente uma tarefa de verificação que prove a correção da falha.");
-        return context.toString();
-    }
-
     private String buildTaskPrompt(TaskPlan plan, AgentTask task) {
-        return "Você está executando uma tarefa dentro de um plano maior.\n"
-                + "NÃO declare o objetivo geral concluído.\n"
-                + "Trabalhe somente na tarefa atual e use as ferramentas disponíveis.\n\n"
-                + "OBJETIVO GERAL:\n" + plan.getGoal() + "\n\n"
-                + "TAREFA:\n" + task.getTitle() + "\n\n"
-                + "INSTRUÇÃO:\n" + task.getInstruction() + "\n\n"
-                + "CRITÉRIO DE CONCLUSÃO:\n" + task.getCompletionCriteria() + "\n\n"
-                + "Execute as mudanças necessárias e informe exatamente o que foi feito.";
+        return "Execute a tarefa: " + task.getInstruction()
+                + "\nCritério de conclusão: " + task.getCompletionCriteria();
     }
 
     private String buildVerificationPrompt(TaskPlan plan, AgentTask task, String executionResult) {
-        return "Você é o verificador de uma tarefa de engenharia.\n"
-                + "Inspecione o projeto com as ferramentas disponíveis quando necessário.\n"
-                + "Responda obrigatoriamente começando por DONE ou NOT_DONE.\n\n"
-                + "OBJETIVO:\n" + plan.getGoal() + "\n\n"
-                + "TAREFA:\n" + task.getTitle() + "\n\n"
-                + "CRITÉRIO:\n" + task.getCompletionCriteria() + "\n\n"
-                + "RESULTADO INFORMADO PELO AGENTE:\n" + executionResult;
+        return "Verifique a tarefa '" + task.getTitle() + "'. Resultado: " + executionResult
+                + "\nResponda DONE se o critério foi cumprido, caso contrário NOT_DONE.";
     }
 
     private boolean isDoneVerdict(String verdict) {
-        return verdict.equalsIgnoreCase("DONE") || verdict.toUpperCase().startsWith("DONE:");
+        return verdict.matches("(?is)\\s*(DONE|OK|CONCLUÍDO|CONCLUIDO)\\s*.*");
     }
 
-    private String truncate(String value, int limit) {
-        if (value == null || value.length() <= limit) {
-            return value;
-        }
-        return value.substring(0, limit) + "...";
+    private boolean isHardFailure(String error) {
+        String lower = error.toLowerCase(Locale.ROOT);
+        return lower.contains("nenhum projeto") || lower.contains("no project");
+    }
+
+    private String buildReplanGoal(String originalGoal, TaskPlan failedPlan) {
+        return originalGoal + "\nReplaneje a partir das falhas do plano anterior e produza um plano executável e verificável.";
     }
 }
