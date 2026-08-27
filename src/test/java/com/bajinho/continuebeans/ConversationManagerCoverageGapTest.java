@@ -1,6 +1,7 @@
 package com.bajinho.continuebeans;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.gson.JsonArray;
@@ -57,8 +58,8 @@ class ConversationManagerCoverageGapTest {
         manager.addMessage("user", "one two three four five");
         manager.setMaxTokens(1);
         assertEquals(0, manager.getMessageCount());
-        assertTrue(manager.getTokenCount() <= 1);
-        assertTrue(manager.getRemainingTokens() >= 0);
-        assertEquals(manager.getTokenCount() >= 1, manager.isAtTokenLimit());
+        assertEquals(0, manager.getTokenCount());
+        assertEquals(1, manager.getRemainingTokens());
+        assertFalse(manager.isAtTokenLimit());
     }
 }
