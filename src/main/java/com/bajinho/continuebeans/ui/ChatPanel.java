@@ -26,8 +26,8 @@ public class ChatPanel extends JPanel {
     private JLabel statusLabel;
     
     public ChatPanel() {
-        initializeLMStudio();
         createUI();
+        initializeLMStudio();
     }
     
     /**
@@ -62,8 +62,10 @@ public class ChatPanel extends JPanel {
             
         } catch (Exception e) {
             LOG.severe("Failed to initialize LM Studio: " + e.getMessage());
-            statusLabel.setText("❌ Connection Error");
-            statusLabel.setForeground(Color.RED);
+            if (statusLabel != null) {
+                statusLabel.setText("❌ Connection Error");
+                statusLabel.setForeground(Color.RED);
+            }
         }
     }
     
