@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.bajinho.continuebeans.LlmClient;
@@ -61,7 +62,7 @@ class TaskOrchestratorTest {
     @Test
     void orchestratorAnswersConversationalMessageWithoutPlannerRetries() {
         LlmClient classifier = mock(LlmClient.class);
-        when(classifier.shouldUseTaskOrchestrator(anyString())).thenReturn(false);
+        when(classifier.shouldUseTaskOrchestrator(anyString(), any())).thenReturn(false);
         doAnswer(invocation -> {
             Consumer<String> onChunk = invocation.getArgument(4);
             Runnable onComplete = invocation.getArgument(6);
@@ -71,7 +72,7 @@ class TaskOrchestratorTest {
         }).when(classifier).perguntarIAStreaming(
                 anyString(), anyString(), anyString(), anyString(), any(), any(), any(Runnable.class));
 
-        RecordingAgent agent = new RecordingAgent(new String[] {"Olá! Como posso ajudar?"});
+        RecordingAgent agent = new RecordingAgent(new String[] {"unexpected"});
         TaskOrchestrator orchestrator = new TaskOrchestrator(
                 new TaskPlanner(HttpClient.newHttpClient(), "http://unused", "test"), agent, classifier);
         RecordingListener listener = new RecordingListener();
@@ -82,7 +83,9 @@ class TaskOrchestratorTest {
         assertEquals(1, plan.getTasks().size());
         assertEquals(TaskStatus.DONE, plan.getTasks().get(0).getStatus());
         assertEquals("Olá! Como posso ajudar?", plan.getTasks().get(0).getLastResult());
-        assertEquals(1, agent.calls.get());
+        assertEquals(0, agent.calls.get());
+        verify(classifier).perguntarIAStreaming(
+                anyString(), anyString(), anyString(), anyString(), any(), any(), any(Runnable.class));
         assertEquals(1, listener.completed.size());
     }
 
