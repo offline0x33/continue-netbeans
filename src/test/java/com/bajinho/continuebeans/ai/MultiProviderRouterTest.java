@@ -1,11 +1,16 @@
 package com.bajinho.continuebeans.ai;
 
-import org.junit.jupiter.api.Test;
-
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Test;
 
 class MultiProviderRouterTest {
 
@@ -124,5 +129,130 @@ class MultiProviderRouterTest {
         assertNotNull(optimizer.getBestProvider(providers, MultiProviderRouter.ProviderSelectionCriteria.SPEED_OPTIMIZED));
         assertNotNull(optimizer.getBestProvider(providers, MultiProviderRouter.ProviderSelectionCriteria.QUALITY_OPTIMIZED));
         assertNotNull(optimizer.getBestProvider(providers, MultiProviderRouter.ProviderSelectionCriteria.LOAD_BALANCED));
+    }
+
+    // ------------------------------------------------------------------
+    // Main-class coverage: exercises the singleton (getInstance) and its
+    // routing / config / metrics methods that inner-class tests never reach.
+    // ------------------------------------------------------------------
+
+    private static MultiProviderRouter.ProviderConfig mainClassProvider(String id, List<String> models) {
+        return new MultiProviderRouter.ProviderConfig(id, 1, 1.0, 60, 10, true,
+                Map.of("chat", true), models, MultiProviderRouter.ProviderSelectionCriteria.DEFAULT);
+    }
+
+    @Test
+    void getInstanceReturnsSameSingletonInstance() {
+        MultiProviderRouter router = MultiProviderRouter.getInstance();
+        assertNotNull(router);
+        assertSame(router, MultiProviderRouter.getInstance());
+    }
+
+    @Test
+    void mainClassRoutesRequestToProviderSupportingModel() {
+        MultiProviderRouter router = MultiProviderRouter.getInstance();
+        router.addProviderConfig(mainClassProvider("router-main", List.of("router-model")));
+        try {
+            MultiProviderRouter.RoutingRequest request =
+                    new MultiProviderRouter.RoutingRequest("r-main", "router-model", "chat", null, 1);
+            assertEquals("router-main", router.routeRequest(request).join());
+        } finally {
+            router.removeProviderConfig("router-main");
+        }
+    }
+
+    @Test
+    void mainClassRouteRequestReturnsNullWhenNoProviderSupportsModel() {
+        MultiProviderRouter router = MultiProviderRouter.getInstance();
+        MultiProviderRouter.RoutingRequest request =
+                new MultiProviderRouter.RoutingRequest("r-none", "no-such-model-xyz", "chat", null, 1);
+        assertNull(router.routeRequest(request).join());
+    }
+
+    @Test
+    void mainClassRouteRequestHonoursCriteriaParameter() {
+        MultiProviderRouter router = MultiProviderRouter.getInstance();
+        router.addProviderConfig(mainClassProvider("router-crit", List.of("crit-model")));
+        try {
+            Map<String, Object> params = new HashMap<>();
+            params.put("criteria", "COST_OPTIMIZED");
+            MultiProviderRouter.RoutingRequest request =
+                    new MultiProviderRouter.RoutingRequest("r-crit", "crit-model", "chat", params, 1);
+            assertEquals("router-crit", router.routeRequest(request).join());
+        } finally {
+            router.removeProviderConfig("router-crit");
+        }
+    }
+
+    @Test
+    void mainClassRouteRequestUsesFailoverWhenSelectedProviderUnhealthy() {
+        MultiProviderRouter router = MultiProviderRouter.getInstance();
+        try {
+            // Drive "openai" to unhealthy (3 consecutive failures) so its failover chain is used.
+            for (int i = 0; i < 3; i++) {
+                router.recordRequestCompletion("openai", 10, false, 0.0);
+            }
+            MultiProviderRouter.RoutingRequest request =
+                    new MultiProviderRouter.RoutingRequest("r-failover", "gpt-4", "chat", null, 1);
+            String result = router.routeRequest(request).join();
+            assertNotNull(result);
+        } finally {
+            // Restore health so other singleton-based tests observe a healthy provider.
+            router.recordRequestCompletion("openai", 10, true, 0.0);
+        }
+    }
+
+    @Test
+    void mainClassRecordRequestCompletionUpdatesMetrics() {
+        MultiProviderRouter router = MultiProviderRouter.getInstance();
+        int before = (int) router.getRoutingStatistics().get("totalRequests");
+        router.recordRequestCompletion("openai", 100, true, 0.01);
+        Map<String, Object> stats = router.getRoutingStatistics();
+        assertEquals(before + 1, (int) stats.get("totalRequests"));
+    }
+
+    @Test
+    void mainClassProviderConfigManagement() {
+        MultiProviderRouter router = MultiProviderRouter.getInstance();
+        MultiProviderRouter.ProviderConfig config = mainClassProvider("cfg-test", List.of("m"));
+        router.addProviderConfig(config);
+        assertNotNull(router.getProviderConfig("cfg-test"));
+        assertTrue(router.getAllProviderConfigs().containsKey("cfg-test"));
+        router.removeProviderConfig("cfg-test");
+        assertNull(router.getProviderConfig("cfg-test"));
+    }
+
+    @Test
+    void mainClassGettersAndRoutingStatisticsExposeStructure() {
+        MultiProviderRouter router = MultiProviderRouter.getInstance();
+        assertNotNull(router.getLoadBalancer());
+        assertNotNull(router.getFailoverManager());
+        assertNotNull(router.getOptimizer());
+        assertNotNull(router.getMetrics());
+        Map<String, Object> stats = router.getRoutingStatistics();
+        assertTrue(stats.containsKey("totalRequests"));
+        assertTrue(stats.containsKey("providerCount"));
+        assertTrue(stats.containsKey("strategyCount"));
+        assertTrue(stats.containsKey("providerStats"));
+    }
+
+    @Test
+    void providerConfigExposesAllGettersAndDefaultsNullArguments() {
+        MultiProviderRouter.ProviderConfig config = new MultiProviderRouter.ProviderConfig(
+                "cfg", 2, 0.75, 30, 4, false, null, null, null);
+        assertEquals("cfg", config.getProviderId());
+        assertEquals(2, config.getPriority());
+        assertEquals(0.75, config.getWeight(), 1e-9);
+        assertEquals(30, config.getMaxRequestsPerMinute());
+        assertEquals(4, config.getMaxConcurrentRequests());
+        assertFalse(config.isEnabled());
+        assertTrue(config.getCapabilities().isEmpty());
+        assertTrue(config.getSupportedModels().isEmpty());
+        assertEquals(MultiProviderRouter.ProviderSelectionCriteria.DEFAULT, config.getSelectionCriteria());
+
+        MultiProviderRouter.ProviderConfig explicit = new MultiProviderRouter.ProviderConfig(
+                "cfg2", 1, 1.0, 60, 10, true, Map.of("chat", true), List.of("m"),
+                MultiProviderRouter.ProviderSelectionCriteria.COST_OPTIMIZED);
+        assertEquals(MultiProviderRouter.ProviderSelectionCriteria.COST_OPTIMIZED, explicit.getSelectionCriteria());
     }
 }

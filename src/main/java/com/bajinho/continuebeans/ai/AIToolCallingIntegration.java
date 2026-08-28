@@ -1,12 +1,5 @@
 package com.bajinho.continuebeans.ai;
 
-import com.bajinho.continuebeans.ContinueSettings;
-import com.bajinho.continuebeans.security.ToolExecutionPolicy;
-import com.google.gson.Gson;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -20,6 +13,14 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
+import com.bajinho.continuebeans.ContinueSettings;
+import com.bajinho.continuebeans.security.ToolExecutionPolicy;
+import com.google.gson.Gson;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 
 /** Real OpenAI-compatible tool calling integration backed by the task executor. */
 public class AIToolCallingIntegration {
@@ -213,7 +214,7 @@ public class AIToolCallingIntegration {
 
     private JsonArray buildTools() {
         JsonArray tools = new JsonArray();
-        for (NetBeansFunctionDefinitions.FunctionDefinition function : functionDefinitions.getAllFunctions()) {
+        for (NetBeansFunctionDefinitions.FunctionDefinition function : NetBeansFunctionDefinitions.getAllFunctions()) {
             JsonObject tool = new JsonObject();
             tool.addProperty("type", "function");
             JsonObject definition = new JsonObject();
@@ -292,7 +293,7 @@ public class AIToolCallingIntegration {
     }
 
     public List<NetBeansFunctionDefinitions.FunctionDefinition> getAvailableFunctions() {
-        return functionDefinitions.getAllFunctions();
+        return NetBeansFunctionDefinitions.getAllFunctions();
     }
 
     public CompletableFuture<NetBeansFunctionExecutor.FunctionResult> executeFunction(
