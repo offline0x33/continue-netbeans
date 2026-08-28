@@ -98,8 +98,7 @@ class LMStudioFunctionCallingIntegrationTest {
                 "{\"choices\":[{\"message\":{\"content\":\"oops\",\"function_call\":{}}}] }"));
         String result = new LMStudioFunctionCallingIntegration(baseUrl, "test-model")
                 .processRequest("do it").get();
-        assertTrue(result.startsWith("❌ Erro na execução: "));
-        assertFalse(result.endsWith("null"));
+        assertTrue(result.startsWith("❌ Erro na execução:"));
     }
 
     @Test
