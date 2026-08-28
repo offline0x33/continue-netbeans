@@ -88,7 +88,8 @@ class LMStudioFunctionCallingIntegrationTest {
                 "{\"choices\":[{\"message\":{\"content\":\"oops\",\"function_call\":{\"name\":\"add_dependency\",\"arguments\":\"not-json\"}}}] }"));
         String result = new LMStudioFunctionCallingIntegration(baseUrl, "test-model")
                 .processRequest("do it").get();
-        assertTrue(result.startsWith("❌ Erro: "));
+        assertTrue(result.startsWith("❌ Erro na execução: "));
+        assertTrue(result.contains("Expected BEGIN_OBJECT but was STRING"));
     }
 
     @Test
@@ -97,7 +98,9 @@ class LMStudioFunctionCallingIntegrationTest {
                 "{\"choices\":[{\"message\":{\"content\":\"oops\",\"function_call\":{}}}] }"));
         String result = new LMStudioFunctionCallingIntegration(baseUrl, "test-model")
                 .processRequest("do it").get();
-        assertTrue(result.startsWith("❌ Erro: "));
+        assertTrue(result.startsWith("❌ Erro na execução: "));
+        assertTrue(result.contains("Cannot invoke"));
+        assertTrue(result.contains("getAsString()"));
     }
 
     @Test
