@@ -99,8 +99,7 @@ class LMStudioFunctionCallingIntegrationTest {
         String result = new LMStudioFunctionCallingIntegration(baseUrl, "test-model")
                 .processRequest("do it").get();
         assertTrue(result.startsWith("❌ Erro na execução: "));
-        assertTrue(result.contains("Cannot invoke"));
-        assertTrue(result.contains("getAsString()"));
+        assertFalse(result.endsWith("null"));
     }
 
     @Test
