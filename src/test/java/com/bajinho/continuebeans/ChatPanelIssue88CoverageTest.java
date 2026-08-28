@@ -33,10 +33,8 @@ class ChatPanelIssue88CoverageTest {
             ContinueSettings.setApiUrl("http://mock/api");
             when(client.getModelosDisponiveisAsync())
                     .thenReturn(CompletableFuture.completedFuture(List.of("alpha", "beta")));
-
             invoke(panel, "refreshModels");
             flushEdt();
-
             JComboBox<String> selector = field(panel, "modeSelector", JComboBox.class);
             assertEquals("alpha", selector.getSelectedItem());
             assertEquals("alpha", ContinueSettings.getModel());
@@ -49,10 +47,8 @@ class ChatPanelIssue88CoverageTest {
             ContinueSettings.setApiUrl("http://mock/api");
             when(client.getModelosDisponiveisAsync())
                     .thenReturn(CompletableFuture.completedFuture(null));
-
             invoke(panel, "refreshModels");
             flushEdt();
-
             JComboBox<String> selector = field(panel, "modeSelector", JComboBox.class);
             assertEquals(1, selector.getItemCount());
             assertEquals("No models available", selector.getSelectedItem());
@@ -70,15 +66,12 @@ class ChatPanelIssue88CoverageTest {
                         listener.set(invocation.getArgument(2));
                         return new CompletableFuture<>();
                     });
-
             invoke(panel, "sendPrompt");
             assertTrue((Boolean) getField(panel, "isProcessing"));
-
             AgentTask task = new AgentTask("Write src/Main.java", "write", "done", List.of());
             TaskPlan plan = new TaskPlan("refactor", List.of(task));
             TaskOrchestrator.Listener callbacks = listener.get();
             assertNotNull(callbacks);
-
             callbacks.onPlanCreated(plan);
             flushEdt();
             task.start();
@@ -92,7 +85,6 @@ class ChatPanelIssue88CoverageTest {
             flushEdt();
             callbacks.onCompleted(plan);
             flushEdt();
-
             assertFalse((Boolean) getField(panel, "isProcessing"));
             assertEquals("Completed", ((JLabel) getField(panel, "statusLabel")).getText());
             assertNotNull(getField(panel, "activePlan"));
@@ -110,21 +102,18 @@ class ChatPanelIssue88CoverageTest {
                         listener.set(invocation.getArgument(2));
                         return new CompletableFuture<>();
                     });
-
             invoke(panel, "sendPrompt");
             TaskPlan plan = new TaskPlan("run tests",
                     List.of(new AgentTask("run tests", "execute", "pass", List.of())));
             TaskOrchestrator.Listener callbacks = listener.get();
             AgentTask task = plan.getTasks().get(0);
             task.fail("compiler failure");
-
             callbacks.onTaskFailed(task);
             flushEdt();
             callbacks.onReplanning(plan);
             flushEdt();
             callbacks.onFailed("Unable to complete", plan);
             flushEdt();
-
             assertFalse((Boolean) getField(panel, "isProcessing"));
             assertEquals("Failed", ((JLabel) getField(panel, "statusLabel")).getText());
         });
@@ -141,12 +130,23 @@ class ChatPanelIssue88CoverageTest {
             for (TaskStatus status : TaskStatus.values()) {
                 AgentTask task = new AgentTask("task-" + status, "instruction", "criteria", List.of());
                 switch (status) {
-                    case RUNNING -> task.start();
-                    case VERIFYING -> task.verifying("result");
-                    case DONE -> task.complete("result");
-                    case FAILED -> task.fail("failure");
-                    case BLOCKED -> task.block("blocked");
-                    default -> { }
+                    case RUNNING:
+                        task.start();
+                        break;
+                    case VERIFYING:
+                        task.verifying("result");
+                        break;
+                    case DONE:
+                        task.complete("result");
+                        break;
+                    case FAILED:
+                        task.fail("failure");
+                        break;
+                    case BLOCKED:
+                        task.block("blocked");
+                        break;
+                    default:
+                        break;
                 }
                 assertNotNull(invoke(panel, "taskIcon", status));
                 assertNotNull(invoke(panel, "taskColor", status));
@@ -163,16 +163,13 @@ class ChatPanelIssue88CoverageTest {
             assertEquals("", invokeStatic("escape", (Object) null));
             assertEquals("src/Main.java", invoke(panel, "extractFileReference", "title", "changed src/Main.java"));
             assertEquals("title", invoke(panel, "extractFileReference", "title", "no file here"));
-
             Object explicit = invokeStatic("from", "+4 -2\nnew file\n");
             assertEquals(4, inner(explicit, "added"));
             assertEquals(2, inner(explicit, "removed"));
             assertTrue((Boolean) inner(explicit, "newFile"));
-
             Object fallback = invokeStatic("from", "plain\n+one\n+two\n-three\n");
             assertEquals(2, inner(fallback, "added"));
             assertEquals(1, inner(fallback, "removed"));
-
             invoke(panel, "appendCodeResult", "Result.java", "+4 -2\nclass Result {}\n");
             invoke(panel, "appendCodeResult", "Result.java", "plain\n+one\n-two\n");
         });
@@ -185,19 +182,15 @@ class ChatPanelIssue88CoverageTest {
             setField(panel, "lastResult", "result");
             invoke(panel, "showDetails");
             assertTrue(((JLabel) getField(panel, "statusLabel")).getText().startsWith("Response details:"));
-
             setField(panel, "lastResult", "");
             invoke(panel, "copyLastResult");
             assertEquals("Nothing to copy", ((JLabel) getField(panel, "statusLabel")).getText());
-
             invoke(panel, "appendActions");
             invoke(panel, "rebuildTaskPanel");
             invoke(panel, "refreshConversation");
-
             setField(panel, "isProcessing", true);
             invoke(panel, "resetInputState");
             assertFalse((Boolean) getField(panel, "isProcessing"));
-
             invoke(panel, "clearChat");
             assertNull(getField(panel, "activePlan"));
             assertEquals("", getField(panel, "lastResult"));
@@ -214,11 +207,9 @@ class ChatPanelIssue88CoverageTest {
             assertTrue(small.getMouseListeners().length > 0);
             assertTrue(icon.getMouseListeners().length > 0);
             assertTrue(round.getMouseListeners().length > 0);
-
             JPanel rounded = (JPanel) invoke(panel, "roundedPanel", Color.BLACK, Color.WHITE, 8);
             assertNotNull(rounded.getBorder());
             assertNotNull(invokeStatic("roundedBorder", Color.WHITE, 8));
-
             JTextField input = field(panel, "promptInput", JTextField.class);
             JButton send = field(panel, "sendButton", JButton.class);
             input.setText("");
