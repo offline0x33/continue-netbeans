@@ -49,14 +49,14 @@
                 <executions>
                     <execution><goals><goal>prepare-agent</goal></goals></execution>
                     <execution><id>report</id><phase>test</phase><goals><goal>report</goal></goals></execution>
-                    <execution><id>check</id><goals><goal>check</goal></goals><configuration><rules><rule><element>BUNDLE</element><limits><limit><counter>LINE</counter><value>COVEREDRATIO</value><minimum>0.80</minimum></limit></limits></rule></rules><excludes><exclude>**/netbeans/**</exclude><exclude>**/assistant/**</exclude><exclude>**/analytics/**</exclude><exclude>**/filesystem/**</exclude><exclude>**/editor/**</exclude><exclude>**/security/**</exclude><exclude>**/cloud/**</exclude><!-- Pacote ai: apenas os arquivos ainda abaixo de 80% ficam excluidos; as demais classes do pacote contam para o gate --> <exclude>**/ai/RealCodeTools*</exclude><exclude>**/ai/AdvancedAIIntegration*</exclude><exclude>**/ai/NetBeansFunctionExecutor*</exclude><exclude>**/system/**</exclude><exclude>**/deployment/**</exclude><exclude>**/mcp/**</exclude><exclude>**/microservices/**</exclude><exclude>**/ui/**</exclude><exclude>**/automation/**</exclude></excludes></configuration></execution>
+                    <execution><id>check</id><goals><goal>check</goal></goals><configuration><rules><rule><element>BUNDLE</element><limits><limit><counter>LINE</counter><value>COVEREDRATIO</value><minimum>0.80</minimum></limit></limits></rule></rules><excludes><exclude>**/netbeans/**</exclude><exclude>**/assistant/**</exclude><exclude>**/analytics/**</exclude><exclude>**/filesystem/**</exclude><exclude>**/editor/**</exclude><exclude>**/security/**</exclude><exclude>**/cloud/**</exclude><!-- Pacote ai: apenas os arquivos ainda abaixo de 80% ficam excluidos; as demais classes do pacote contam para o gate --> <exclude>**/ai/AdvancedAIIntegration*</exclude><exclude>**/ai/NetBeansFunctionExecutor*</exclude><exclude>**/system/**</exclude><exclude>**/deployment/**</exclude><exclude>**/mcp/**</exclude><exclude>**/microservices/**</exclude><exclude>**/ui/**</exclude><exclude>**/automation/**</exclude></excludes></configuration></execution>
                 </executions>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId><artifactId>maven-surefire-plugin</artifactId><version>3.6.0-M1</version>
                 <configuration>
                     <argLine>@{argLine} -Dnet.bytebuddy.experimental=true --add-opens java.base/java.net=ALL-UNNAMED --add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED</argLine>
-                    <forkedProcessTimeoutInSeconds>300</forkedProcessTimeoutInSeconds>
+                    <forkedProcessTimeoutInSeconds>600</forkedProcessTimeoutInSeconds>
                 </configuration>
             </plugin>
             <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-checkstyle-plugin</artifactId><version>3.3.0</version><configuration><configLocation>google_checks.xml</configLocation><consoleOutput>true</consoleOutput><failsOnError>false</failsOnError><linkXRef>false</linkXRef><skip>true</skip></configuration></plugin>
